@@ -1,0 +1,89 @@
+.mobile-controls {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  left: 18px;
+  z-index: 10;
+  display: none;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.mobile-controls button {
+  width: clamp(58px, 16vw, 74px);
+  height: clamp(52px, 12vh, 58px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(15, 24, 31, 0.78);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.26);
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  backdrop-filter: blur(8px);
+}
+
+.mobile-controls button:active {
+  border-color: rgba(112, 240, 255, 0.8);
+  background: rgba(112, 240, 255, 0.18);
+}
+
+.mobile-controls__steer,
+.mobile-controls__pedals {
+  display: flex;
+  gap: 10px;
+}
+
+.mobile-controls__pedals {
+  display: grid;
+  grid-template-columns: repeat(3, clamp(54px, 13vw, 70px));
+  align-items: end;
+}
+
+.mobile-controls .mobile-controls__nitro {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: clamp(42px, 9vh, 50px);
+}
+
+.orientation-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: none;
+  place-items: center;
+  padding: 28px;
+  background: rgba(4, 9, 12, 0.82);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+@media (pointer: coarse) and (orientation: portrait), (max-width: 520px) {
+  .mobile-controls {
+    right: 10px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    left: 10px;
+    align-items: end;
+  }
+
+  .mobile-controls button {
+    width: clamp(50px, 16vw, 64px);
+    height: 52px;
+  }
+
+  .mobile-controls__pedals {
+    grid-template-columns: repeat(3, clamp(50px, 16vw, 64px));
+  }
+
+  .mobile-controls__steer,
+  .mobile-controls__pedals {
+    gap: 8px;
+  }
+}

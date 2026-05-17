@@ -1,0 +1,50 @@
+.game-shell::before {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+  content: '';
+}
+
+.game-shell.weather-rain::before,
+.game-shell.weather-storm::before {
+  background:
+    repeating-linear-gradient(105deg, rgba(225, 244, 255, 0.34) 0 1px, transparent 1px 12px);
+  background-size: 120px 120px;
+  animation: weather-streaks 520ms linear infinite;
+  opacity: 0.16;
+}
+
+.game-shell.weather-storm::before {
+  animation-duration: 340ms;
+  opacity: 0.24;
+}
+
+.game-shell.weather-fog::before {
+  background:
+    radial-gradient(circle at 50% 64%, rgba(215, 229, 226, 0.22), transparent 42%),
+    linear-gradient(0deg, rgba(205, 222, 219, 0.38), rgba(205, 222, 219, 0.06) 58%, transparent);
+  opacity: 0.44;
+}
+
+.game-shell.weather-snow::before {
+  background:
+    radial-gradient(circle at 20% 12%, rgba(255, 255, 255, 0.82) 0 1px, transparent 2px),
+    radial-gradient(circle at 64% 18%, rgba(255, 255, 255, 0.74) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 42% 54%, rgba(255, 255, 255, 0.7) 0 1px, transparent 2px),
+    radial-gradient(circle at 82% 72%, rgba(255, 255, 255, 0.78) 0 1.5px, transparent 2.5px);
+  background-size: 88px 88px, 128px 128px, 104px 104px, 142px 142px;
+  animation: snow-drift 5.8s linear infinite;
+  opacity: 0.52;
+}
+
+.game-shell.weather-cloudy::before {
+  background: linear-gradient(180deg, rgba(44, 57, 63, 0.1), transparent 42%);
+  opacity: 0.22;
+}
+
+.game-shell.is-hit {
+  animation: hit-flash 150ms linear;
+}

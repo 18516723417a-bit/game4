@@ -1,0 +1,20 @@
+{
+  "name": "game4-city-racer",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n CLIENT,SERVER -c green,cyan \"npm run dev --workspace client\" \"npm run dev --workspace server\"",
+    "dev:client": "npm run dev --workspace client",
+    "dev:server": "npm run dev --workspace server",
+    "build": "npm run build --workspace client",
+    "start:server": "npm run start --workspace server",
+    "test:tunnel": "node tests/game4-tunnel-smoke.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

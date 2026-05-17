@@ -1,0 +1,287 @@
+@media (max-width: 640px) {
+  .hud {
+    top: 12px;
+    left: 12px;
+    width: min(236px, calc(100vw - 24px));
+    max-height: calc(100vh - 178px);
+    max-height: calc(100dvh - 178px);
+    overflow: auto;
+    padding: 12px;
+  }
+
+  .hud-row strong {
+    font-size: 21px;
+  }
+
+  .mini-map {
+    top: 12px;
+    right: 12px;
+    grid-template-columns: 58px;
+    width: 82px;
+    min-height: 124px;
+    justify-items: center;
+    gap: 5px;
+  }
+
+  .mini-map__surface {
+    width: 58px;
+  }
+
+  .mini-map__status {
+    justify-items: center;
+    gap: 4px;
+    text-align: center;
+  }
+
+  .mini-map__maneuver {
+    grid-template-columns: 24px;
+    justify-items: center;
+    gap: 3px;
+  }
+
+  .mini-map__maneuver-icon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mini-map__maneuver-text {
+    max-width: 58px;
+    font-size: 10px;
+  }
+
+  .world-map-overlay {
+    padding: 12px;
+  }
+
+  .world-map-panel {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+    grid-template-rows: auto minmax(260px, 1fr) auto;
+    padding: 12px;
+  }
+
+  .world-map-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .world-map-canvas {
+    width: min(100%, 52vh);
+  }
+
+  .world-map-navigation {
+    max-height: 240px;
+  }
+
+  .world-map-navigation__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .world-map-header h2 {
+    font-size: 18px;
+  }
+
+  .world-map-footer {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .game-card {
+    width: calc(100vw - 28px);
+    padding: 18px;
+  }
+
+  .game-card h1 {
+    font-size: 26px;
+  }
+
+  .game-card__rules {
+    grid-template-columns: 1fr;
+  }
+
+  .game-card__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .mission-result {
+    top: 12px;
+    grid-template-columns: 1fr;
+  }
+
+  .mission-result button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .game-shell.is-first-person .hud {
+    top: 10px;
+    left: 10px;
+    width: 166px;
+    max-height: calc(100vh - 20px);
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  .game-shell.is-first-person .hud-title {
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+
+  .game-shell.is-first-person .hud-actions {
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+
+  .game-shell.is-first-person .hud-actions button {
+    min-height: 30px;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+
+  .game-shell.is-first-person .hud-actions button:nth-child(3),
+  .game-shell.is-first-person .hud-actions button:nth-child(5),
+  .game-shell.is-first-person .hud-actions button:nth-child(6),
+  .game-shell.is-first-person .hud-row.muted:not(.hud-row--meter),
+  .game-shell.is-first-person .hud-debug,
+  .game-shell.is-first-person .chunk-debug {
+    display: none;
+  }
+
+  .navigation-guide {
+    top: auto;
+    right: 12px;
+    bottom: 152px;
+    left: 12px;
+    width: auto;
+    min-width: 0;
+    transform: none;
+  }
+
+  .cockpit-dashboard {
+    right: 88px;
+    left: 270px;
+    grid-template-columns: 0 58px minmax(72px, 1fr) 58px 0;
+    gap: 8px;
+    height: 82px;
+    min-height: 82px;
+    padding: 12px 12px 10px;
+  }
+
+  .cockpit-pillar--left {
+    left: 246px;
+  }
+
+  .cockpit-pillar--right {
+    right: 18px;
+  }
+
+  .cockpit-mirror,
+  .cockpit-vent {
+    display: none;
+  }
+
+  .cockpit-gauge {
+    width: 58px;
+    height: 58px;
+    border-width: 6px;
+  }
+
+  .cockpit-gauge span {
+    top: 12px;
+    font-size: 8px;
+  }
+
+  .cockpit-gauge strong {
+    bottom: 10px;
+    font-size: 10px;
+  }
+
+  .cockpit-gauge i {
+    height: 21px;
+  }
+
+  .cockpit-readout {
+    min-width: 82px;
+    padding: 8px 10px;
+  }
+
+  .cockpit-readout strong {
+    font-size: 24px;
+  }
+
+  .cockpit-wheel {
+    bottom: -42px;
+    width: 126px;
+    border-width: 12px;
+  }
+
+  .cockpit-wheel__hub {
+    width: 32px;
+    height: 32px;
+  }
+
+  .cockpit-wheel__spoke {
+    width: 9px;
+    height: 45px;
+  }
+}
+
+@media (pointer: coarse), (max-width: 840px) {
+  .mobile-controls {
+    display: flex;
+  }
+}
+
+@media (pointer: coarse) and (orientation: portrait) and (max-width: 840px) {
+  .orientation-hint {
+    display: none;
+  }
+
+  .hud {
+    width: min(214px, calc(100vw - 24px));
+    max-height: calc(100vh - 178px);
+    max-height: calc(100dvh - 178px);
+    overflow: auto;
+  }
+
+  .game-shell.is-first-person .hud {
+    max-height: calc(100vh - 178px);
+    max-height: calc(100dvh - 178px);
+    overflow: auto;
+  }
+
+  .navigation-guide {
+    grid-template-columns: 30px minmax(0, 1fr) auto auto;
+    min-height: 46px;
+    padding: 8px;
+  }
+
+  .hud-actions button {
+    min-height: 32px;
+    font-size: 11px;
+  }
+
+  .mini-map {
+    grid-template-columns: 54px;
+    width: 78px;
+    min-height: 116px;
+  }
+
+  .mini-map__surface {
+    width: 54px;
+  }
+}
+
+@media (pointer: coarse) and (max-height: 520px) {
+  .hud,
+  .game-shell.is-first-person .hud {
+    max-height: calc(100vh - 156px);
+    max-height: calc(100dvh - 156px);
+    overflow: auto;
+  }
+
+  .hud-actions button {
+    min-height: 30px;
+    font-size: 11px;
+  }
+}

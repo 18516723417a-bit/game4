@@ -1,0 +1,17 @@
+{
+  "name": "City Racer",
+  "short_name": "City Racer",
+  "start_url": "/game4/",
+  "scope": "/game4/",
+  "display": "fullscreen",
+  "background_color": "#101820",
+  "theme_color": "#101820",
+  "description": "A lightweight browser driving game with city roads, checkpoints, and multiplayer presence.",
+  "icons": [
+    {
+      "src": "/game4/favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml"
+    }
+  ]
+}
