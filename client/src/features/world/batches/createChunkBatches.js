@@ -426,9 +426,6 @@ function isExpresswayLaneMark(mark) {
 function isTunnelWallPanelObstacle(obstacle) {
   return obstacle.type === 'transportUnderpassCeiling' ||
     obstacle.type === 'transportUnderpassOverheadDeck' ||
-    obstacle.type === 'transportUnderpassPortal' ||
-    obstacle.type === 'transportUnderpassPortalSignPanel' ||
-    obstacle.type === 'transportUnderpassPortalWing' ||
     obstacle.type === 'transportUnderpassRetainingWall' ||
     obstacle.type === 'transportUnderpassRib' ||
     obstacle.type === 'transportUnderpassTrenchFloor' ||

@@ -88,24 +88,6 @@ export const TRANSPORT_HIGHWAY = {
 
 export const MAP_FEATURES = [
   {
-    id: 'ocean-crossing',
-    label: 'Ocean',
-    type: 'water',
-    bounds: {
-      minX: 1000,
-      maxX: 3000,
-      minZ: 500,
-      maxZ: 1000
-    }
-  },
-  {
-    id: 'harbor-island',
-    label: 'Harbor Island',
-    type: 'island',
-    center: { x: 2760, z: 750 },
-    radius: 168
-  },
-  {
     id: TRANSPORT_HUBS.airport.id,
     label: TRANSPORT_HUBS.airport.label,
     type: TRANSPORT_HUBS.airport.type,

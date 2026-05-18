@@ -12,7 +12,8 @@
     "dev:server": "npm run dev --workspace server",
     "build": "npm run build --workspace client",
     "start:server": "npm run start --workspace server",
-    "test:tunnel": "node tests/game4-tunnel-smoke.mjs"
+    "test:tunnel": "node tests/game4-tunnel-smoke.mjs",
+    "test:map": "node tests/game4-map-intersections.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

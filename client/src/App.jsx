@@ -39,6 +39,7 @@ const WEATHER_MODE_STORAGE_KEY = 'game4:weatherMode';
 const MAP_CLICK_MODE_STORAGE_KEY = 'game4:mapClickMode';
 const GROUND_NAVIGATION_GUIDE_STORAGE_KEY = 'game4:groundNavigationGuide';
 const QUALITY_MODE_STORAGE_KEY = 'game4:qualityMode';
+const SOUND_ENABLED_STORAGE_KEY = 'game4:soundEnabled';
 const CARGO_BEST_STORAGE_KEY = 'game4:cargoBestMs';
 const neutralTouchInput = {
   forward: false,
@@ -136,6 +137,7 @@ export default function App() {
   const chunkLoadingRef = useRef(false);
   const cooldownUntilRef = useRef(0);
   const gameAudioRef = useRef(null);
+  const soundEnabledRef = useRef(true);
   const previousCollisionCountRef = useRef(initialTelemetry.collisionCount);
   const teleportResumeTimerRef = useRef(null);
   const [telemetry, setTelemetry] = useState(initialTelemetry);
@@ -155,6 +157,7 @@ export default function App() {
   const [nightMode, setNightMode] = useState(readNightModePreference);
   const [weatherMode, setWeatherMode] = useState(readWeatherModePreference);
   const [qualityMode, setQualityMode] = useState(readQualityModePreference);
+  const [soundEnabled, setSoundEnabled] = useState(readSoundEnabledPreference);
   const [language, setLanguage] = useState(readLanguagePreference);
   const [raceModeEnabled, setRaceModeEnabled] = useState(initialRaceModeRef.current);
   const [gameState, setGameState] = useState(() => createInitialGameState(initialRaceModeRef.current));
@@ -210,6 +213,7 @@ export default function App() {
     `weather-${weatherMode}`
   ].filter(Boolean).join(' ');
   const t = useCallback((key) => getText(language, key), [language]);
+  soundEnabledRef.current = soundEnabled;
 
   useEffect(() => {
     const nextRadius = renderQuality.loadRadius ?? 1;
@@ -232,6 +236,7 @@ export default function App() {
 
   useEffect(() => {
     const unlockAudio = () => {
+      if (!soundEnabledRef.current) return;
       const audio = ensureGameAudio(gameAudioRef);
       audio?.context?.resume?.();
     };
@@ -243,12 +248,14 @@ export default function App() {
       window.removeEventListener('keydown', unlockAudio);
       window.removeEventListener('pointerdown', unlockAudio);
       stopGameAudio(gameAudioRef.current);
+      gameAudioRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    updateVehicleAudio(gameAudioRef.current, telemetry, isGamePaused || launchOverlayOpen || mapOpen);
+    updateVehicleAudio(gameAudioRef.current, telemetry, !soundEnabled || isGamePaused || launchOverlayOpen || mapOpen);
   }, [
+    soundEnabled,
     isGamePaused,
     launchOverlayOpen,
     mapOpen,
@@ -261,12 +268,12 @@ export default function App() {
     const previousCount = previousCollisionCountRef.current ?? 0;
     const nextCount = telemetry.collisionCount ?? 0;
 
-    if (nextCount > previousCount) {
+    if (soundEnabled && nextCount > previousCount) {
       playCollisionSound(ensureGameAudio(gameAudioRef), telemetry.collisionPulse);
     }
 
     previousCollisionCountRef.current = nextCount;
-  }, [telemetry.collisionCount, telemetry.collisionPulse]);
+  }, [soundEnabled, telemetry.collisionCount, telemetry.collisionPulse]);
 
   const loadChunksForPosition = useCallback(async (position, {
     clearExisting = false,
@@ -1400,6 +1407,28 @@ export default function App() {
           <button
             type="button"
             className="hud-actions__secondary"
+            onClick={() => {
+              setSoundEnabled((value) => {
+                const nextEnabled = !value;
+                writeSoundEnabledPreference(nextEnabled);
+
+                if (nextEnabled) {
+                  const audio = ensureGameAudio(gameAudioRef);
+                  audio?.context?.resume?.();
+                } else {
+                  updateVehicleAudio(gameAudioRef.current, telemetry, true);
+                }
+
+                return nextEnabled;
+              });
+              focusGameCanvas();
+            }}
+          >
+            {t('sound')}: {soundEnabled ? t('on') : t('off')}
+          </button>
+          <button
+            type="button"
+            className="hud-actions__secondary"
             onClick={transportMission.phase === 'pickup' || transportMission.phase === 'delivery'
               ? handleCancelTransportMission
               : handleStartTransportMission}
@@ -1531,6 +1560,10 @@ export default function App() {
         <div className="hud-row muted">
           <span>{t('quality')}</span>
           <strong>{formatQualityMode(qualityMode, language)}</strong>
+        </div>
+        <div className="hud-row muted">
+          <span>{t('sound')}</span>
+          <strong>{soundEnabled ? t('on') : t('off')}</strong>
         </div>
         <div className="hud-row muted">
           <span>{t('time')}</span>
@@ -1756,6 +1789,22 @@ function readQualityModePreference() {
 function writeQualityModePreference(mode) {
   try {
     window.localStorage.setItem(QUALITY_MODE_STORAGE_KEY, mode);
+  } catch {
+    // localStorage can be unavailable in strict private browsing modes.
+  }
+}
+
+function readSoundEnabledPreference() {
+  try {
+    return window.localStorage.getItem(SOUND_ENABLED_STORAGE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+function writeSoundEnabledPreference(enabled) {
+  try {
+    window.localStorage.setItem(SOUND_ENABLED_STORAGE_KEY, enabled ? 'true' : 'false');
   } catch {
     // localStorage can be unavailable in strict private browsing modes.
   }
