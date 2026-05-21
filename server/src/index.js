@@ -42,6 +42,9 @@ const wss = new WebSocketServer({
 });
 
 wss.on('connection', (socket, request) => {
+  socket._socket?.setNoDelay?.(true);
+  socket._socket?.setKeepAlive?.(true, serverConfig.heartbeatIntervalMs);
+
   const roomId = sanitizeRoomId(getQueryParam(request.url, 'roomId') || serverConfig.defaultRoomId);
   const room = getOrCreateRoom(roomId);
 
@@ -93,6 +96,12 @@ wss.on('connection', (socket, request) => {
   socket.on('message', (raw) => {
     const activeClient = clients.get(clientId);
     if (!activeClient) return;
+
+    if (getMessageByteLength(raw) > serverConfig.maxClientMessageBytes) {
+      socket.close(1009, 'Message too large');
+      removeClient(clientId);
+      return;
+    }
 
     activeClient.lastSeenAt = Date.now();
 
@@ -311,7 +320,7 @@ function broadcastTeleport(roomId, payload) {
     const client = clients.get(clientId);
 
     if (client?.socket.readyState === client.socket.OPEN) {
-      client.socket.send(message);
+      sendRawToSocket(client.socket, message);
     }
   }
 }
@@ -322,23 +331,35 @@ function broadcastSnapshots() {
   const serverTime = Date.now();
 
   for (const room of rooms.values()) {
-    if (room.players.size === 0) {
+    const openClients = getOpenRoomClients(room);
+
+    if (openClients.length === 0) {
       room.lastSnapshotPlayerCount = 0;
       continue;
     }
 
-    if (room.players.size === 1 && room.lastSnapshotPlayerCount <= 1) {
+    if (openClients.length === 1 && room.lastSnapshotPlayerCount <= 1) {
       continue;
     }
 
     const players = [];
+    let newestUpdateAt = 0;
 
-    for (const clientId of room.players) {
-      const client = clients.get(clientId);
+    for (const client of openClients) {
+      newestUpdateAt = Math.max(newestUpdateAt, client.player.updatedAt ?? 0);
+      players.push(createNetworkPlayer(client.player));
+    }
 
-      if (client) {
-        players.push(createNetworkPlayer(client.player));
-      }
+    if (
+      players.length <= 1 ||
+      (
+        room.lastSnapshotPlayerCount === players.length &&
+        newestUpdateAt <= room.lastSnapshotUpdateAt
+      )
+    ) {
+      room.lastSnapshotPlayerCount = players.length;
+      room.lastSnapshotUpdateAt = Math.max(room.lastSnapshotUpdateAt ?? 0, newestUpdateAt);
+      continue;
     }
 
     const message = encode(messageTypes.serverSnapshot, {
@@ -347,16 +368,26 @@ function broadcastSnapshots() {
       players
     });
 
-    for (const clientId of room.players) {
-      const client = clients.get(clientId);
-
-      if (client?.socket.readyState === client.socket.OPEN) {
-        client.socket.send(message);
-      }
+    for (const client of openClients) {
+      sendRawToSocket(client.socket, message);
     }
 
-    room.lastSnapshotPlayerCount = room.players.size;
+    room.lastSnapshotPlayerCount = players.length;
+    room.lastSnapshotUpdateAt = newestUpdateAt;
   }
+}
+
+function getOpenRoomClients(room) {
+  const openClients = [];
+
+  for (const clientId of room.players) {
+    const client = clients.get(clientId);
+    if (client?.socket.readyState === client.socket.OPEN) {
+      openClients.push(client);
+    }
+  }
+
+  return openClients;
 }
 
 function createNetworkPlayer(player) {
@@ -381,7 +412,8 @@ function getOrCreateRoom(roomId) {
     id: roomId,
     players: new Set(),
     createdAt: Date.now(),
-    lastSnapshotPlayerCount: 0
+    lastSnapshotPlayerCount: 0,
+    lastSnapshotUpdateAt: 0
   };
 
   rooms.set(roomId, room);
@@ -474,9 +506,15 @@ function getRoomPopulations() {
 }
 
 function sendToSocket(socket, type, payload) {
-  if (socket.readyState === socket.OPEN) {
-    socket.send(encode(type, payload));
-  }
+  sendRawToSocket(socket, encode(type, payload));
+}
+
+function sendRawToSocket(socket, message) {
+  if (socket.readyState !== socket.OPEN) return false;
+  if (socket.bufferedAmount > serverConfig.maxBufferedBytes) return false;
+
+  socket.send(message);
+  return true;
 }
 
 function getQueryParam(url, key) {
@@ -574,4 +612,12 @@ function sendJson(response, statusCode, payload) {
     'cache-control': 'no-store'
   });
   response.end(JSON.stringify(payload));
+}
+
+function getMessageByteLength(raw) {
+  if (typeof raw === 'string') return Buffer.byteLength(raw);
+  if (Buffer.isBuffer(raw)) return raw.length;
+  if (raw instanceof ArrayBuffer) return raw.byteLength;
+  if (ArrayBuffer.isView(raw)) return raw.byteLength;
+  return 0;
 }

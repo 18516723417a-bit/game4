@@ -45,8 +45,8 @@ export function createNavigationRoute(playerPosition, navigationTarget, loadedCh
   const graph = createWorkingGraph(getBaseRoadGraph());
   const startAnchor = snapToLoadedRoad(start, loadedChunks) ?? snapToCityGrid(start);
   const targetAnchor = snapToLoadedRoad(target, loadedChunks) ?? snapDestinationToAccess(target, targetType);
-  const startId = addVirtualNode(graph, 'route-start', startAnchor, start);
-  const targetId = addVirtualNode(graph, 'route-target', targetAnchor, target);
+  const startId = addVirtualNode(graph, 'route-start', startAnchor);
+  const targetId = addVirtualNode(graph, 'route-target', targetAnchor);
 
   connectVirtualNode(graph, startId, startAnchor, targetType);
   connectVirtualNode(graph, targetId, targetAnchor, targetType);
@@ -56,7 +56,7 @@ export function createNavigationRoute(playerPosition, navigationTarget, loadedCh
   const pathPoints = pathIds.length > 0
     ? pathIds.map((id) => graph.nodes.get(id)).filter(Boolean).map((node) => node.point)
     : createFallbackRoute(startAnchor, targetAnchor, targetType);
-  const finalPoints = simplifyRoutePoints([start, ...pathPoints, target]);
+  const finalPoints = simplifyRoutePoints(pathPoints);
   const segments = createRouteSegments(finalPoints);
 
   return {
@@ -109,6 +109,61 @@ export function getNavigationInfoForRoute(position, heading, route) {
     relativeBearing,
     routeType: route.routeType,
     tollCount: route.tollCount ?? 0
+  };
+}
+
+export function getAutopilotInputForRoute(position, heading, speed, route, options = {}) {
+  if (!options.enabled || !position || !route?.segments?.length) return createNeutralAutopilotInput();
+
+  const nearest = getNearestRouteProgress(position, route);
+  const remainingDistance = Math.max(0, route.distance - nearest.distanceFromStart);
+
+  if (remainingDistance < 20) {
+    const needsStop = Math.abs(speed ?? 0) > 1.2;
+
+    return {
+      ...createNeutralAutopilotInput(),
+      forward: needsStop,
+      backward: needsStop
+    };
+  }
+
+  const speedAbs = Math.abs(Number(speed) || 0);
+  const offRoute = nearest.distance > 42;
+  const lookaheadDistance = offRoute
+    ? clamp(34 + speedAbs * 0.95, 30, 92)
+    : clamp(50 + speedAbs * 1.35, 38, 150);
+  const targetPoint = getRoutePointAtDistance(route, nearest.distanceFromStart + lookaheadDistance);
+  const dx = targetPoint.x - position.x;
+  const dz = targetPoint.z - position.z;
+  const bearing = Math.atan2(dx, dz);
+  const relativeBearing = normalizeAngle(bearing - heading);
+  const absBearing = Math.abs(relativeBearing);
+  const nextTurn = getNextTurn(route, nearest);
+  const turnSoon = nextTurn && nextTurn.distance < 95 && nextTurn.type !== 'straight';
+  const baseDesiredSpeed = getAutopilotDesiredSpeed(absBearing, remainingDistance, Boolean(turnSoon));
+  const desiredSpeed = offRoute ? Math.min(baseDesiredSpeed, 13.5) : baseDesiredSpeed;
+  const steerDeadzone = speedAbs < 4 ? 0.16 : 0.055;
+  const shouldBrake =
+    (remainingDistance < 40 && speedAbs > desiredSpeed + 0.8) ||
+    speedAbs > desiredSpeed + (turnSoon ? 7.5 : 11) ||
+    (absBearing > 2.72 && speedAbs > 8);
+  const shouldCoast =
+    !shouldBrake &&
+    (speedAbs > desiredSpeed + 2.4 || (absBearing > 1.45 && speedAbs > 9.5));
+  const wantsThrottle = !shouldCoast && (absBearing < 2.55 || speedAbs < 5.5);
+
+  return {
+    forward: shouldBrake || wantsThrottle,
+    backward: shouldBrake,
+    left: relativeBearing > steerDeadzone,
+    right: relativeBearing < -steerDeadzone,
+    reset: false,
+    nitro: false,
+    handbrake: false,
+    targetPoint,
+    desiredSpeed,
+    relativeBearing
   };
 }
 
@@ -270,16 +325,8 @@ function addPointNode(graph, id, point, kind = 'road') {
   return id;
 }
 
-function addVirtualNode(graph, id, anchor, rawPoint) {
+function addVirtualNode(graph, id, anchor) {
   addPointNode(graph, id, anchor, 'virtual');
-
-  if (getPlanarDistance(anchor, rawPoint) > 1) {
-    const rawId = `${id}:raw`;
-
-    addPointNode(graph, rawId, rawPoint, 'virtual');
-    addUndirectedEdge(graph, rawId, id, 'access');
-    return rawId;
-  }
 
   return id;
 }
@@ -660,6 +707,50 @@ function getNextRoutePoint(position, route, progress) {
   return segment.end;
 }
 
+function getRoutePointAtDistance(route, targetDistance) {
+  const clampedDistance = clamp(targetDistance, 0, route.distance);
+
+  for (const segment of route.segments) {
+    const segmentStart = segment.distanceFromStart;
+    const segmentEnd = segmentStart + segment.length;
+
+    if (clampedDistance > segmentEnd && segment !== route.segments[route.segments.length - 1]) continue;
+
+    const t = segment.length > 0
+      ? clamp((clampedDistance - segmentStart) / segment.length, 0, 1)
+      : 1;
+
+    return {
+      x: lerp(segment.start.x, segment.end.x, t),
+      z: lerp(segment.start.z, segment.end.z, t)
+    };
+  }
+
+  const last = route.segments[route.segments.length - 1];
+  return last?.end ?? toPoint(route.target.position);
+}
+
+function getAutopilotDesiredSpeed(absBearing, remainingDistance, turnSoon) {
+  if (remainingDistance < 44) return 4.5;
+  if (turnSoon) return 11.5;
+  if (absBearing > 1.05) return 7.5;
+  if (absBearing > 0.58) return 12.5;
+  if (absBearing > 0.24) return 18;
+  return 28;
+}
+
+function createNeutralAutopilotInput() {
+  return {
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+    reset: false,
+    nitro: false,
+    handbrake: false
+  };
+}
+
 function getNextTurn(route, progress) {
   const current = route.segments[progress.segmentIndex];
   const next = route.segments[progress.segmentIndex + 1];
@@ -799,6 +890,10 @@ function toPoint(point) {
 
 function getPlanarDistance(a, b) {
   return Math.hypot((b.x ?? 0) - (a.x ?? 0), (b.z ?? 0) - (a.z ?? 0));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
 }
 
 function normalizeAngle(angle) {

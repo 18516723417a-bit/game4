@@ -901,6 +901,7 @@ function sampleDriveSurface(position, currentY, driveSurfaces, fallbackY, config
     const y = getSurfaceYAt(surface, position.x, position.z, surfaceMargin);
 
     if (!Number.isFinite(y)) continue;
+    if (isUndergroundSurfaceSnapCandidate(surface, y, currentY, fallbackY, config)) continue;
 
     let score = Math.abs(currentY - y);
 
@@ -951,6 +952,13 @@ function sampleDriveSurface(position, currentY, driveSurfaces, fallbackY, config
 function shouldPreferRampSurface(rampSurface, bestSurface, currentY, fallbackY) {
   if (!bestSurface?.id) return true;
   if (bestSurface.roadType === 'grass') return true;
+  if (
+    currentY >= fallbackY - 0.7 &&
+    rampSurface.y < fallbackY - 1.2 &&
+    rampSurface.y < currentY - 1.35
+  ) {
+    return false;
+  }
 
   const rampStartsNearGround = Math.min(rampSurface.startY ?? fallbackY, rampSurface.endY ?? fallbackY) <= fallbackY + 0.8;
   if (rampStartsNearGround && rampSurface.y <= fallbackY + 2.2) return true;
@@ -960,6 +968,16 @@ function shouldPreferRampSurface(rampSurface, bestSurface, currentY, fallbackY) 
   }
 
   return false;
+}
+
+function isUndergroundSurfaceSnapCandidate(surface, y, currentY, fallbackY, config) {
+  if (y >= fallbackY - 1.2) return false;
+
+  const maxStepDown = Math.max(1.25, (config.maxSurfaceDrop ?? 2.2) * 0.62);
+  if (currentY < fallbackY - 0.7) return false;
+  if (surface.shape === 'ramp' && y >= currentY - maxStepDown) return false;
+
+  return y < currentY - maxStepDown;
 }
 
 function getSurfaceYAt(surface, x, z, margin = 0) {

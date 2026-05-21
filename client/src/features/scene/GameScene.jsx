@@ -17,6 +17,7 @@ export default function GameScene({
   gameControlsEnabled,
   gameState,
   multiplayer,
+  autopilotInput,
   navigationRoute,
   nightMode,
   playerVehicleConfig,
@@ -53,9 +54,13 @@ export default function GameScene({
       dpr={[1, renderQuality.maxDpr]}
       camera={{ position: [0, 7, 14], fov: 55, near: 0.1, far: renderQuality.cameraFar }}
       gl={{
+        alpha: false,
         antialias: renderQuality.antialias,
+        depth: true,
+        preserveDrawingBuffer: false,
         powerPreference: renderQuality.powerPreference,
-        precision: renderQuality.precision
+        precision: renderQuality.precision,
+        stencil: false
       }}
       tabIndex={0}
       onCreated={({ gl }) => {
@@ -106,12 +111,17 @@ export default function GameScene({
         playerPosition={telemetry.position}
         weatherMode={weatherMode}
       />
-      <NavigationGroundGuide enabled={showGroundNavigationGuide} route={navigationRoute} />
+      <NavigationGroundGuide
+        driveSurfaces={chunkSnapshot.driveSurfaces}
+        enabled={showGroundNavigationGuide}
+        route={navigationRoute}
+      />
       <PlayerCar
         ref={carRef}
         config={playerVehicleConfig}
         activeColliders={chunkSnapshot.colliders}
         activeRoadSurfaces={chunkSnapshot.driveSurfaces}
+        autopilotInput={autopilotInput}
         controlsEnabled={gameControlsEnabled}
         driverView={cameraMode === 'firstPerson'}
         isNight={nightMode || weatherPreset.headlightsOn}

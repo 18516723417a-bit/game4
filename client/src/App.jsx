@@ -1,7 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CAR_CONFIG } from './features/vehicle/carConfig.js';
 import { useMultiplayerClient } from './features/network/useMultiplayerClient.js';
-import { createNavigationRoute, getNavigationInfoForRoute } from './features/navigation/navigationRoutes.js';
+import {
+  createNavigationRoute,
+  getAutopilotInputForRoute,
+  getNavigationInfoForRoute
+} from './features/navigation/navigationRoutes.js';
 import { ChunkManager, getDebugTunnelSample, getSafeTeleportPosition } from './features/world/ChunkManager.js';
 import { WorldMap, getDefaultNavigationDestinations } from './features/world/WorldMap.jsx';
 import { getTunnelStatus } from './features/world/tunnelState.js';
@@ -151,6 +155,8 @@ export default function App() {
   const [teleportStatus, setTeleportStatus] = useState('ready');
   const [touchInput, setTouchInput] = useState(neutralTouchInput);
   const [navigationTarget, setNavigationTarget] = useState(null);
+  const [navigationRoute, setNavigationRoute] = useState(null);
+  const [autopilotEnabled, setAutopilotEnabled] = useState(false);
   const [groundNavigationGuideEnabled, setGroundNavigationGuideEnabled] = useState(readGroundNavigationGuidePreference);
   const initialRaceModeRef = useRef(readRaceModePreference());
   const [cameraMode, setCameraMode] = useState(readCameraModePreference);
@@ -173,19 +179,37 @@ export default function App() {
   );
   const multiplayer = useMultiplayerClient(telemetry);
   const isGamePaused = gameState.phase === 'paused' || (!raceModeEnabled && freeDrivePaused);
-  const gameControlsEnabled = !isGamePaused && (!raceModeEnabled || gameState.phase === 'running') && !launchOverlayOpen && !mapOpen && !teleporting;
+  const gameControlsEnabled = !isGamePaused &&
+    (!raceModeEnabled || gameState.phase === 'running') &&
+    !launchOverlayOpen &&
+    !mapOpen &&
+    !teleporting;
   const nextCheckpoint = raceModeEnabled ? RACE_CHECKPOINTS[gameState.checkpointIndex] ?? null : null;
   const timeLeftMs = Math.max(0, GAME_TIME_LIMIT_MS - gameState.elapsedMs);
   const distanceToGoal = raceModeEnabled && nextCheckpoint
     ? getPlanarDistance(telemetry.position, nextCheckpoint.position)
     : null;
-  const navigationRoute = useMemo(
-    () => createNavigationRoute(telemetry.position, navigationTarget, chunkSnapshot.loadedChunks),
-    [navigationTarget, telemetry.position, chunkSnapshot.loadedChunks]
-  );
   const navigationInfo = useMemo(
     () => getNavigationInfoForRoute(telemetry.position, telemetry.rotation?.y ?? 0, navigationRoute),
     [navigationRoute, telemetry.position, telemetry.rotation?.y]
+  );
+  const autopilotInput = useMemo(
+    () => getAutopilotInputForRoute(
+      telemetry.position,
+      telemetry.rotation?.y ?? telemetry.heading ?? playerVehicleConfig.spawn.heading,
+      telemetry.speed ?? 0,
+      navigationRoute,
+      { enabled: autopilotEnabled && gameControlsEnabled }
+    ),
+    [
+      autopilotEnabled,
+      gameControlsEnabled,
+      navigationRoute,
+      telemetry.heading,
+      telemetry.position,
+      telemetry.rotation?.y,
+      telemetry.speed
+    ]
   );
   const tunnelStatus = useMemo(
     () => getTunnelStatus(
@@ -214,6 +238,23 @@ export default function App() {
   ].filter(Boolean).join(' ');
   const t = useCallback((key) => getText(language, key), [language]);
   soundEnabledRef.current = soundEnabled;
+
+  useEffect(() => {
+    if (!navigationTarget?.position) {
+      setNavigationRoute(null);
+      setAutopilotEnabled(false);
+      return;
+    }
+
+    const nextRoute = createNavigationRoute(
+      telemetry.position,
+      navigationTarget,
+      chunkSnapshot.loadedChunks
+    );
+
+    setNavigationRoute(nextRoute);
+    setAutopilotEnabled(Boolean(nextRoute));
+  }, [navigationTarget]);
 
   useEffect(() => {
     const nextRadius = renderQuality.loadRadius ?? 1;
@@ -1099,8 +1140,15 @@ export default function App() {
     focusGameCanvas();
   }, [focusGameCanvas]);
 
+  const handleToggleAutopilot = useCallback(() => {
+    setAutopilotEnabled((enabled) => !enabled);
+    focusGameCanvas();
+  }, [focusGameCanvas]);
+
   const handleClearNavigation = useCallback(() => {
     setNavigationTarget(null);
+    setNavigationRoute(null);
+    setAutopilotEnabled(false);
     focusGameCanvas();
   }, [focusGameCanvas]);
 
@@ -1224,6 +1272,7 @@ export default function App() {
           gameControlsEnabled={gameControlsEnabled}
           gameState={gameState}
           multiplayer={multiplayer}
+          autopilotInput={autopilotInput}
           navigationRoute={navigationRoute}
           nightMode={nightMode}
           playerVehicleConfig={playerVehicleConfig}
@@ -1278,6 +1327,9 @@ export default function App() {
           </div>
           <button type="button" onClick={handleToggleGroundNavigationGuide} aria-label="Toggle ground navigation guide">
             {t('line')} {groundNavigationGuideEnabled ? t('on') : t('off')}
+          </button>
+          <button type="button" onClick={handleToggleAutopilot} aria-label="Toggle navigation autopilot">
+            Auto {autopilotEnabled ? t('on') : t('off')}
           </button>
           <button type="button" onClick={handleClearNavigation} aria-label="Clear navigation">
             {t('clear')}
@@ -1523,6 +1575,10 @@ export default function App() {
             <div className="hud-row muted">
               <span>{t('groundLine')}</span>
               <strong>{groundNavigationGuideEnabled ? t('on') : t('off')}</strong>
+            </div>
+            <div className="hud-row muted">
+              <span>Auto</span>
+              <strong>{autopilotEnabled ? t('on') : t('off')}</strong>
             </div>
           </>
         ) : null}
@@ -1893,8 +1949,8 @@ function getRenderQualitySettings(mode = 'auto') {
   if (mode === 'low') {
     return {
       antialias: false,
-      cameraFar: 500,
-      fogFar: 390,
+      cameraFar: 540,
+      fogFar: 430,
       loadRadius: 1,
       maxDpr: 1,
       powerPreference: 'low-power',
@@ -1907,10 +1963,10 @@ function getRenderQualitySettings(mode = 'auto') {
   if (mode === 'high') {
     return {
       antialias: true,
-      cameraFar: 780,
-      fogFar: 640,
+      cameraFar: 820,
+      fogFar: 700,
       loadRadius: 1,
-      maxDpr: 1.25,
+      maxDpr: 1.12,
       powerPreference: 'high-performance',
       precision: 'highp',
       shadowMapSize: 1024,
@@ -1921,22 +1977,22 @@ function getRenderQualitySettings(mode = 'auto') {
   if (mode === 'ultra') {
     return {
       antialias: true,
-      cameraFar: 980,
-      fogFar: 780,
+      cameraFar: 960,
+      fogFar: 840,
       loadRadius: 1,
-      maxDpr: 1.35,
+      maxDpr: 1.18,
       powerPreference: 'high-performance',
       precision: 'highp',
       shadowMapSize: 1024,
-      shadows: true
+      shadows: false
     };
   }
 
   if (typeof navigator === 'undefined') {
     return {
       antialias: false,
-      cameraFar: 560,
-      fogFar: 440,
+      cameraFar: 600,
+      fogFar: 500,
       loadRadius: 1,
       maxDpr: 1,
       powerPreference: 'low-power',
@@ -1956,8 +2012,8 @@ function getRenderQualitySettings(mode = 'auto') {
   if (compactDevice) {
     return {
       antialias: false,
-      cameraFar: 500,
-      fogFar: 390,
+      cameraFar: 560,
+      fogFar: 470,
       loadRadius: 1,
       maxDpr: 1,
       powerPreference: 'low-power',
@@ -1968,14 +2024,14 @@ function getRenderQualitySettings(mode = 'auto') {
   }
 
   return {
-    antialias: false,
-    cameraFar: 620,
-    fogFar: 500,
+    antialias: true,
+    cameraFar: 860,
+    fogFar: 740,
     loadRadius: 1,
-    maxDpr: 1,
-    powerPreference: 'low-power',
-    precision: 'mediump',
-    shadowMapSize: 512,
+    maxDpr: 1.1,
+    powerPreference: 'high-performance',
+    precision: 'highp',
+    shadowMapSize: 1024,
     shadows: false
   };
 }

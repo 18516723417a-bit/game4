@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber';
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useDisposableResource } from '../rendering/instanceRenderers.jsx';
 import { clamp, lerp, positiveModulo } from '../utils/math.js';
@@ -9,6 +9,8 @@ const trafficVehiclePartObject = new THREE.Object3D();
 const colorObject = new THREE.Color();
 const INTERSECTION_YIELD_LOOKAHEAD = 0.13;
 const INTERSECTION_YIELD_RADIUS = 58;
+const SMOOTH_TRAFFIC_PATH_TYPES = new Set(['bus-route', 'intersection-turn', 'junction-route', 'metro-line', 'smart-turn']);
+const TRAFFIC_TURN_LOOKAHEAD_DISTANCE = 6.5;
 
 const TRAFFIC_VEHICLE_PARTS = [
   {
@@ -27,6 +29,7 @@ const TRAFFIC_VEHICLE_PARTS = [
     geometry: 'box',
     colorFromVehicle: true,
     colorLightness: 0.04,
+    hideTypes: ['bus'],
     metalness: 0.16,
     position: [0, 0.73, 0.31],
     receiveShadow: true,
@@ -38,6 +41,7 @@ const TRAFFIC_VEHICLE_PARTS = [
     key: 'cabin',
     color: '#172634',
     geometry: 'cabin',
+    hideTypes: ['bus'],
     metalness: 0.08,
     position: [0, 0.98, -0.08],
     receiveShadow: true,
@@ -51,15 +55,349 @@ const TRAFFIC_VEHICLE_PARTS = [
     colorFromVehicle: true,
     colorLightness: -0.06,
     metalness: 0.16,
+    hideTypes: ['bus'],
     position: [0, 1.24, -0.11],
     receiveShadow: true,
     roughness: 0.42,
     scale: [0.46, 0.08, 0.24]
   },
   {
+    key: 'bus-window-left',
+    color: '#102634',
+    geometry: 'box',
+    metalness: 0.08,
+    onlyTypes: ['bus'],
+    position: [-0.49, 0.86, -0.02],
+    roughness: 0.18,
+    scale: [0.035, 0.28, 0.72]
+  },
+  {
+    key: 'bus-window-right',
+    color: '#102634',
+    geometry: 'box',
+    metalness: 0.08,
+    onlyTypes: ['bus'],
+    position: [0.49, 0.86, -0.02],
+    roughness: 0.18,
+    scale: [0.035, 0.28, 0.72]
+  },
+  {
+    key: 'bus-route-board',
+    color: '#f2d486',
+    geometry: 'box',
+    emissive: '#b48f20',
+    emissiveIntensity: 0.35,
+    onlyTypes: ['bus'],
+    position: [0, 0.78, 0.51],
+    roughness: 0.26,
+    scale: [0.42, 0.12, 0.032]
+  },
+  {
+    key: 'bus-side-stripe-left',
+    colorFromVehicle: true,
+    colorLightness: 0.08,
+    geometry: 'box',
+    onlyTypes: ['bus'],
+    position: [-0.505, 0.52, -0.02],
+    roughness: 0.4,
+    scale: [0.026, 0.06, 0.82]
+  },
+  {
+    key: 'bus-side-stripe-right',
+    colorFromVehicle: true,
+    colorLightness: 0.08,
+    geometry: 'box',
+    onlyTypes: ['bus'],
+    position: [0.505, 0.52, -0.02],
+    roughness: 0.4,
+    scale: [0.026, 0.06, 0.82]
+  },
+  {
+    key: 'taxi-roof-light',
+    color: '#fff3a6',
+    emissive: '#f2d486',
+    emissiveIntensity: 0.58,
+    geometry: 'box',
+    onlyTypes: ['taxi'],
+    position: [0, 1.34, -0.02],
+    roughness: 0.2,
+    scale: [0.25, 0.075, 0.14]
+  },
+  {
+    key: 'taxi-door-card-left',
+    color: '#101214',
+    geometry: 'box',
+    onlyTypes: ['taxi'],
+    position: [-0.505, 0.62, -0.03],
+    roughness: 0.24,
+    scale: [0.025, 0.12, 0.16]
+  },
+  {
+    key: 'taxi-door-card-right',
+    color: '#101214',
+    geometry: 'box',
+    onlyTypes: ['taxi'],
+    position: [0.505, 0.62, -0.03],
+    roughness: 0.24,
+    scale: [0.025, 0.12, 0.16]
+  },
+  {
+    key: 'metro-body',
+    colorFromVehicle: true,
+    emissive: '#dfe8ec',
+    emissiveIntensity: 0.18,
+    geometry: 'box',
+    metalness: 0.12,
+    onlyTypes: ['metroTrain'],
+    position: [0, 0.5, 0],
+    receiveShadow: true,
+    roughness: 0.34,
+    scale: [1, 1, 1]
+  },
+  {
+    key: 'metro-roof',
+    color: '#d7dee2',
+    emissive: '#c4cdd2',
+    emissiveIntensity: 0.08,
+    geometry: 'box',
+    metalness: 0.18,
+    onlyTypes: ['metroTrain'],
+    position: [0, 1.03, 0],
+    receiveShadow: true,
+    roughness: 0.34,
+    scale: [0.92, 0.12, 0.9]
+  },
+  {
+    key: 'metro-roof-equipment-a',
+    color: '#8b969d',
+    geometry: 'box',
+    metalness: 0.2,
+    onlyTypes: ['metroTrain'],
+    position: [0, 1.15, -0.18],
+    receiveShadow: true,
+    roughness: 0.32,
+    scale: [0.42, 0.08, 0.22]
+  },
+  {
+    key: 'metro-roof-equipment-b',
+    color: '#8b969d',
+    geometry: 'box',
+    metalness: 0.2,
+    onlyTypes: ['metroTrain'],
+    position: [0, 1.15, 0.22],
+    receiveShadow: true,
+    roughness: 0.32,
+    scale: [0.34, 0.07, 0.16]
+  },
+  {
+    key: 'metro-window-left',
+    color: '#21313a',
+    geometry: 'box',
+    metalness: 0.08,
+    onlyTypes: ['metroTrain'],
+    position: [-0.51, 0.72, 0],
+    roughness: 0.16,
+    scale: [0.035, 0.28, 0.78]
+  },
+  {
+    key: 'metro-window-right',
+    color: '#21313a',
+    geometry: 'box',
+    metalness: 0.08,
+    onlyTypes: ['metroTrain'],
+    position: [0.51, 0.72, 0],
+    roughness: 0.16,
+    scale: [0.035, 0.28, 0.78]
+  },
+  {
+    key: 'metro-front-window',
+    color: '#21313a',
+    geometry: 'box',
+    metalness: 0.08,
+    onlyTypes: ['metroTrain'],
+    position: [0, 0.76, 0.505],
+    roughness: 0.16,
+    scale: [0.56, 0.28, 0.035]
+  },
+  {
+    key: 'metro-rear-window',
+    color: '#21313a',
+    geometry: 'box',
+    metalness: 0.08,
+    onlyTypes: ['metroTrain'],
+    position: [0, 0.76, -0.505],
+    roughness: 0.16,
+    scale: [0.56, 0.28, 0.035]
+  },
+  {
+    key: 'metro-front-route-board',
+    colorFromLine: true,
+    emissiveFromLine: true,
+    emissiveIntensity: 0.48,
+    geometry: 'box',
+    onlyTrainEnds: ['front'],
+    onlyTypes: ['metroTrain'],
+    position: [0, 1.0, 0.545],
+    roughness: 0.2,
+    scale: [0.42, 0.1, 0.025]
+  },
+  {
+    key: 'metro-rear-route-board',
+    colorFromLine: true,
+    emissiveFromLine: true,
+    emissiveIntensity: 0.34,
+    geometry: 'box',
+    onlyTrainEnds: ['rear'],
+    onlyTypes: ['metroTrain'],
+    position: [0, 1.0, -0.545],
+    roughness: 0.2,
+    scale: [0.42, 0.1, 0.025]
+  },
+  {
+    key: 'metro-line-stripe-left',
+    colorFromLine: true,
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.525, 0.47, 0],
+    roughness: 0.36,
+    scale: [0.03, 0.095, 0.98]
+  },
+  {
+    key: 'metro-line-stripe-right',
+    colorFromLine: true,
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.525, 0.47, 0],
+    roughness: 0.36,
+    scale: [0.03, 0.095, 0.98]
+  },
+  {
+    key: 'metro-line-stripe-front',
+    colorFromLine: true,
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0, 0.47, 0.525],
+    roughness: 0.36,
+    scale: [0.84, 0.095, 0.024]
+  },
+  {
+    key: 'metro-line-stripe-rear',
+    colorFromLine: true,
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0, 0.47, -0.525],
+    roughness: 0.36,
+    scale: [0.84, 0.095, 0.024]
+  },
+  {
+    key: 'metro-door-left-a',
+    color: '#cbd3d8',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.535, 0.5, -0.24],
+    roughness: 0.28,
+    scale: [0.02, 0.56, 0.16]
+  },
+  {
+    key: 'metro-door-left-b',
+    color: '#cbd3d8',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.535, 0.5, 0.24],
+    roughness: 0.28,
+    scale: [0.02, 0.56, 0.16]
+  },
+  {
+    key: 'metro-door-right-a',
+    color: '#cbd3d8',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.535, 0.5, -0.24],
+    roughness: 0.28,
+    scale: [0.02, 0.56, 0.16]
+  },
+  {
+    key: 'metro-door-right-b',
+    color: '#cbd3d8',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.535, 0.5, 0.24],
+    roughness: 0.28,
+    scale: [0.02, 0.56, 0.16]
+  },
+  {
+    key: 'metro-front-headlight-left',
+    color: '#fff3a6',
+    emissive: '#f2d486',
+    emissiveIntensity: 0.8,
+    geometry: 'box',
+    onlyTrainEnds: ['front'],
+    onlyTypes: ['metroTrain'],
+    position: [-0.24, 0.28, 0.515],
+    roughness: 0.18,
+    scale: [0.14, 0.1, 0.025]
+  },
+  {
+    key: 'metro-front-headlight-right',
+    color: '#fff3a6',
+    emissive: '#f2d486',
+    emissiveIntensity: 0.8,
+    geometry: 'box',
+    onlyTrainEnds: ['front'],
+    onlyTypes: ['metroTrain'],
+    position: [0.24, 0.28, 0.515],
+    roughness: 0.18,
+    scale: [0.14, 0.1, 0.025]
+  },
+  {
+    key: 'metro-rear-light-left',
+    color: '#e36d5c',
+    emissive: '#8f1510',
+    emissiveIntensity: 0.48,
+    geometry: 'box',
+    onlyTrainEnds: ['rear'],
+    onlyTypes: ['metroTrain'],
+    position: [-0.24, 0.28, -0.515],
+    roughness: 0.18,
+    scale: [0.12, 0.1, 0.025]
+  },
+  {
+    key: 'metro-rear-light-right',
+    color: '#e36d5c',
+    emissive: '#8f1510',
+    emissiveIntensity: 0.48,
+    geometry: 'box',
+    onlyTrainEnds: ['rear'],
+    onlyTypes: ['metroTrain'],
+    position: [0.24, 0.28, -0.515],
+    roughness: 0.18,
+    scale: [0.12, 0.1, 0.025]
+  },
+  {
+    key: 'truck-cargo-box',
+    color: '#cfd4ca',
+    geometry: 'box',
+    metalness: 0.05,
+    onlyTypes: ['truck'],
+    position: [0, 0.78, -0.16],
+    receiveShadow: true,
+    roughness: 0.58,
+    scale: [0.86, 0.68, 0.76]
+  },
+  {
+    key: 'truck-cargo-top',
+    color: '#e5eef2',
+    geometry: 'box',
+    onlyTypes: ['truck'],
+    position: [0, 1.13, -0.16],
+    roughness: 0.54,
+    scale: [0.82, 0.035, 0.72]
+  },
+  {
     key: 'windshield',
     color: '#0d1b25',
     geometry: 'box',
+    hideTypes: ['bus'],
     metalness: 0.08,
     position: [0, 0.96, 0.15],
     roughness: 0.16,
@@ -70,6 +408,7 @@ const TRAFFIC_VEHICLE_PARTS = [
     key: 'rear-window',
     color: '#0d1b25',
     geometry: 'box',
+    hideTypes: ['bus', 'truck'],
     metalness: 0.08,
     position: [0, 0.94, -0.29],
     roughness: 0.18,
@@ -80,6 +419,7 @@ const TRAFFIC_VEHICLE_PARTS = [
     key: 'left-side-window',
     color: '#102634',
     geometry: 'box',
+    hideTypes: ['bus'],
     metalness: 0.08,
     position: [-0.46, 0.94, -0.08],
     roughness: 0.18,
@@ -89,6 +429,7 @@ const TRAFFIC_VEHICLE_PARTS = [
     key: 'right-side-window',
     color: '#102634',
     geometry: 'box',
+    hideTypes: ['bus'],
     metalness: 0.08,
     position: [0.46, 0.94, -0.08],
     roughness: 0.18,
@@ -294,6 +635,14 @@ const TRAFFIC_VEHICLE_PARTS = [
 
 trafficVehicleRootObject.add(trafficVehiclePartObject);
 
+let trafficMotionFrameCache = {
+  elapsed: Number.NaN,
+  instances: null,
+  motions: [],
+  playerX: null,
+  playerZ: null
+};
+
 export function MovingTrafficVehicleInstances({ instances, playerPosition }) {
   if (instances.length === 0) return null;
 
@@ -313,15 +662,24 @@ export function MovingTrafficVehicleInstances({ instances, playerPosition }) {
 
 function TrafficVehiclePartInstances({ instances, part, playerPosition }) {
   const meshRef = useRef(null);
+  const renderEntries = useMemo(() => (
+    instances
+      .map((vehicle, sourceIndex) => ({ sourceIndex, vehicle }))
+      .filter(({ vehicle }) => isTrafficVehiclePartVisible(part, vehicle))
+      .map((entry, renderIndex) => ({ ...entry, renderIndex }))
+  ), [instances, part]);
+  const animatedEntries = useMemo(() => (
+    renderEntries.filter(({ vehicle }) => Boolean(vehicle.speed))
+  ), [renderEntries]);
   const geometry = useDisposableResource(() => createTrafficVehiclePartGeometry(part.geometry), [part.geometry]);
   const material = useDisposableResource(() => new THREE.MeshStandardMaterial({
-    color: part.colorFromVehicle || part.dynamicColor ? '#ffffff' : part.color,
-    emissive: part.emissive ?? '#000000',
+    color: part.colorFromVehicle || part.colorFromLine || part.dynamicColor ? '#ffffff' : part.color,
+    emissive: part.emissiveFromLine ? '#f2d486' : part.emissive ?? '#000000',
     emissiveIntensity: part.emissiveIntensity ?? 0,
     metalness: part.metalness ?? 0.04,
     roughness: part.roughness ?? 0.5,
     side: part.side ?? THREE.FrontSide,
-    vertexColors: Boolean(part.colorFromVehicle || part.dynamicColor)
+    vertexColors: Boolean(part.colorFromVehicle || part.colorFromLine || part.dynamicColor)
   }), [part]);
 
   useLayoutEffect(() => {
@@ -329,47 +687,49 @@ function TrafficVehiclePartInstances({ instances, part, playerPosition }) {
 
     if (!mesh) return;
 
-    for (let index = 0; index < instances.length; index += 1) {
+    for (let index = 0; index < renderEntries.length; index += 1) {
+      const { sourceIndex, vehicle } = renderEntries[index];
       const motion = part.dynamicColor
-        ? getTrafficVehicleMotion(instances[index], 0, instances, index, null)
+        ? getTrafficVehicleMotion(vehicle, 0, instances, sourceIndex, playerPosition)
         : null;
 
-      writeTrafficVehiclePartMatrix(mesh, index, instances[index], 0, part, instances, null, motion);
+      writeTrafficVehiclePartMatrix(mesh, index, vehicle, 0, part, instances, playerPosition, motion, sourceIndex);
 
-      if (part.colorFromVehicle || part.dynamicColor) {
-        mesh.setColorAt(index, getTrafficVehiclePartColor(instances[index], part, 0, motion));
+      if (part.colorFromVehicle || part.colorFromLine || part.dynamicColor) {
+        mesh.setColorAt(index, getTrafficVehiclePartColor(vehicle, part, 0, motion));
       }
     }
 
-    mesh.count = instances.length;
+    mesh.count = renderEntries.length;
     mesh.instanceMatrix.needsUpdate = true;
 
-    if ((part.colorFromVehicle || part.dynamicColor) && mesh.instanceColor) {
+    if ((part.colorFromVehicle || part.colorFromLine || part.dynamicColor) && mesh.instanceColor) {
       mesh.instanceColor.needsUpdate = true;
       mesh.material.needsUpdate = true;
     }
-  }, [instances, part]);
+  }, [instances, part, playerPosition, renderEntries]);
 
   useFrame(({ clock }) => {
     const mesh = meshRef.current;
 
     if (!mesh) return;
 
-    const elapsed = clock.getElapsedTime();
+    const elapsed = clock.elapsedTime;
 
-    for (let index = 0; index < instances.length; index += 1) {
-      const motion = part.dynamicColor
-        ? getTrafficVehicleMotion(instances[index], elapsed, instances, index, playerPosition)
-        : null;
+    for (let index = 0; index < animatedEntries.length; index += 1) {
+      const { renderIndex, sourceIndex, vehicle } = animatedEntries[index];
+      const motion = getTrafficVehicleMotion(vehicle, elapsed, instances, sourceIndex, playerPosition);
 
-      writeTrafficVehiclePartMatrix(mesh, index, instances[index], elapsed, part, instances, playerPosition, motion);
+      writeTrafficVehiclePartMatrix(mesh, renderIndex, vehicle, elapsed, part, instances, playerPosition, motion, sourceIndex);
 
       if (part.dynamicColor) {
-        mesh.setColorAt(index, getTrafficVehiclePartColor(instances[index], part, elapsed, motion));
+        mesh.setColorAt(renderIndex, getTrafficVehiclePartColor(vehicle, part, elapsed, motion));
       }
     }
 
-    mesh.count = instances.length;
+    if (animatedEntries.length === 0) return;
+
+    mesh.count = renderEntries.length;
     mesh.instanceMatrix.needsUpdate = true;
 
     if (part.dynamicColor && mesh.instanceColor) {
@@ -377,11 +737,13 @@ function TrafficVehiclePartInstances({ instances, part, playerPosition }) {
     }
   });
 
+  if (renderEntries.length === 0) return null;
+
   return (
     <instancedMesh
-      key={`${part.key}-${instances.length}`}
+      key={`${part.key}-${renderEntries.length}`}
       ref={meshRef}
-      args={[geometry, material, instances.length]}
+      args={[geometry, material, renderEntries.length]}
       castShadow={part.castShadow !== false}
       dispose={null}
       frustumCulled={false}
@@ -391,13 +753,18 @@ function TrafficVehiclePartInstances({ instances, part, playerPosition }) {
   );
 }
 
-function writeTrafficVehiclePartMatrix(mesh, index, vehicle, elapsed, part, instances, playerPosition, motionOverride = null) {
-  const motion = motionOverride ?? getTrafficVehicleMotion(vehicle, elapsed, instances, index, playerPosition);
-  const pose = getTrafficPathPose(vehicle.path, motion.progress);
+function writeTrafficVehiclePartMatrix(mesh, index, vehicle, elapsed, part, instances, playerPosition, motionOverride = null, sourceIndex = index) {
+  const motion = motionOverride ?? getTrafficVehicleMotion(vehicle, elapsed, instances, sourceIndex, playerPosition);
+  const pose = motion.pose ?? getTrafficPathPose(vehicle.path, motion.progress);
   const [width, height, depth] = vehicle.scale;
   const [localX, localY, localZ] = part.position;
   const [rotationX = 0, rotationY = 0, rotationZ = 0] = part.rotation ?? [];
-  const [scaleX, scaleY, scaleZ] = getTrafficVehiclePartScale(part, width, height, depth);
+  const [scaleX, scaleY, scaleZ] = (
+    isTrafficVehiclePartVisible(part, vehicle) &&
+    isTrafficVehiclePoseInsideRenderBounds(vehicle, pose)
+  )
+    ? getTrafficVehiclePartScale(part, width, height, depth)
+    : [0, 0, 0];
 
   trafficVehicleRootObject.position.set(pose.x, pose.y ?? vehicle.baseY, pose.z);
   trafficVehicleRootObject.rotation.set(0, pose.yaw, 0);
@@ -408,23 +775,101 @@ function writeTrafficVehiclePartMatrix(mesh, index, vehicle, elapsed, part, inst
   mesh.setMatrixAt(index, trafficVehiclePartObject.matrixWorld);
 }
 
+function isTrafficVehiclePartVisible(part, vehicle) {
+  const type = vehicle?.vehicleType ?? 'car';
+
+  if (type === 'metroTrain' && (!Array.isArray(part.onlyTypes) || !part.onlyTypes.includes(type))) return false;
+  if (Array.isArray(part.onlyTypes) && !part.onlyTypes.includes(type)) return false;
+  if (Array.isArray(part.hideTypes) && part.hideTypes.includes(type)) return false;
+  if (Array.isArray(part.onlyTrainEnds) && !part.onlyTrainEnds.includes(vehicle?.trainEnd)) return false;
+  return true;
+}
+
+function isTrafficVehiclePoseInsideRenderBounds(vehicle, pose) {
+  const bounds = vehicle?.renderBounds;
+  if (!bounds) return true;
+
+  return pose.x >= bounds.minX &&
+    pose.x <= bounds.maxX &&
+    pose.z >= bounds.minZ &&
+    pose.z <= bounds.maxZ;
+}
+
 function getTrafficVehicleMotion(vehicle, elapsed, instances = [], vehicleIndex = -1, playerPosition = null) {
+  const cache = getTrafficMotionFrameCache(instances, elapsed, playerPosition);
+  if (cache && vehicleIndex >= 0) {
+    const cached = cache.motions[vehicleIndex];
+    if (cached) return cached;
+  }
+
   if (!vehicle.speed) {
-    return {
+    return finalizeTrafficVehicleMotion(vehicle, {
       direction: 1,
       braking: 0,
       progress: clamp(vehicle.offset ?? 0, 0, 1)
-    };
+    }, cache, vehicleIndex);
   }
 
   const timedMotion = getTimedTrafficMotion(vehicle, elapsed);
   const trafficMotion = applyFollowingDistance(timedMotion, vehicle, instances, vehicleIndex, elapsed);
   const yieldedMotion = applyIntersectionYield(trafficMotion, vehicle, instances, vehicleIndex, elapsed);
 
-  return applyPlayerAvoidance(yieldedMotion, vehicle, playerPosition);
+  return finalizeTrafficVehicleMotion(
+    vehicle,
+    applyPlayerAvoidance(yieldedMotion, vehicle, playerPosition),
+    cache,
+    vehicleIndex
+  );
+}
+
+function getTrafficMotionFrameCache(instances, elapsed, playerPosition) {
+  if (!Array.isArray(instances)) return null;
+
+  const playerX = Number.isFinite(playerPosition?.x) ? playerPosition.x : null;
+  const playerZ = Number.isFinite(playerPosition?.z) ? playerPosition.z : null;
+
+  if (
+    trafficMotionFrameCache.instances !== instances ||
+    trafficMotionFrameCache.elapsed !== elapsed ||
+    trafficMotionFrameCache.playerX !== playerX ||
+    trafficMotionFrameCache.playerZ !== playerZ
+  ) {
+    trafficMotionFrameCache = {
+      elapsed,
+      instances,
+      motions: new Array(instances.length),
+      playerX,
+      playerZ
+    };
+  }
+
+  return trafficMotionFrameCache;
+}
+
+function finalizeTrafficVehicleMotion(vehicle, motion, cache, vehicleIndex) {
+  const pose = getTrafficPathPose(vehicle.path, motion.progress);
+
+  if (motion.direction < 0) {
+    pose.yaw += Math.PI;
+  }
+
+  const result = {
+    ...motion,
+    pose
+  };
+
+  if (cache && vehicleIndex >= 0) {
+    cache.motions[vehicleIndex] = result;
+  }
+
+  return result;
 }
 
 function getTimedTrafficMotion(vehicle, elapsed) {
+  if (vehicle.behavior === 'metro-train' && Array.isArray(vehicle.metroStops)) {
+    return getMetroTrainTimedMotion(vehicle, elapsed);
+  }
+
   const rawProgress = (vehicle.offset ?? 0) + elapsed * vehicle.speed;
   const progress = positiveModulo(rawProgress, 1);
   const direction = 1;
@@ -450,6 +895,35 @@ function getTimedTrafficMotion(vehicle, elapsed) {
       continue;
     }
 
+    if (zone.kind === 'transitStop') {
+      const delta = motion.progress - zone.t;
+      const radius = zone.radius ?? 0.032;
+      const absDelta = Math.abs(delta);
+
+      if (absDelta >= radius) continue;
+
+      const cycleSeconds = zone.cycleSeconds ?? 8.5;
+      const dwellSeconds = zone.dwellSeconds ?? 2.35;
+      const phase = positiveModulo(
+        elapsed + (vehicle.offset ?? 0) * 7 + (zone.phaseOffset ?? 0),
+        cycleSeconds
+      );
+      const dwell = phase < dwellSeconds && absDelta < radius * 0.42;
+
+      if (dwell) {
+        motion = {
+          ...motion,
+          braking: 1,
+          progress: zone.t
+        };
+        continue;
+      }
+
+      const strength = (zone.intensity ?? 1) * (1 - absDelta / radius);
+      motion = applyMotionBrake(motion, 0.07 * strength);
+      continue;
+    }
+
     const delta = motion.progress - zone.t;
     const radius = zone.radius ?? 0.04;
     const absDelta = Math.abs(delta);
@@ -461,6 +935,125 @@ function getTimedTrafficMotion(vehicle, elapsed) {
   }
 
   return motion;
+}
+
+function getMetroTrainTimedMotion(vehicle, elapsed) {
+  const schedule = getMetroTrainSchedule(vehicle);
+  if (!schedule || schedule.entries.length === 0) {
+    const progress = positiveModulo((vehicle.offset ?? 0) + elapsed * (vehicle.speed ?? 0), 1);
+
+    return {
+      direction: 1,
+      braking: 0,
+      progress
+    };
+  }
+
+  const phase = positiveModulo(elapsed + (vehicle.trainOffset ?? vehicle.offset ?? 0) * schedule.cycleSeconds, schedule.cycleSeconds);
+  let cursor = 0;
+
+  for (const entry of schedule.entries) {
+    if (phase < cursor + entry.dwellSeconds) {
+      return createMetroTrainMotion(vehicle, entry.from, entry.direction, 1, true);
+    }
+
+    cursor += entry.dwellSeconds;
+
+    if (phase < cursor + entry.moveSeconds) {
+      const t = clamp((phase - cursor) / Math.max(entry.moveSeconds, 0.001), 0, 1);
+      const eased = easeInOutSine(t);
+      const progress = lerp(entry.from, entry.to, eased);
+      const braking = t < 0.16 || t > 0.84 ? 0.35 : 0;
+
+      return createMetroTrainMotion(vehicle, progress, entry.direction, braking, false);
+    }
+
+    cursor += entry.moveSeconds;
+  }
+
+  const last = schedule.entries[schedule.entries.length - 1];
+  return createMetroTrainMotion(vehicle, last.to, last.direction, 1, true);
+}
+
+function getMetroTrainSchedule(vehicle) {
+  if (vehicle.__metroSchedule) return vehicle.__metroSchedule;
+
+  const stops = createMetroStopSequence(vehicle.metroStops, vehicle.metroTerminalMargin ?? 0, vehicle.metroOneWay);
+  if (stops.length < 2) return null;
+
+  const cycleSeconds = Math.max(vehicle.metroCycleSeconds ?? 720, 1);
+  const dwellTotal = stops.reduce((total, stop) => total + getMetroStopDwellSeconds(vehicle, stop), 0);
+  const travelProgress = vehicle.metroOneWay
+    ? stops.slice(0, -1).reduce((total, stop, index) => total + Math.max(0, stops[index + 1] - stop), 0)
+    : stops.reduce((total, stop, index) => {
+        const next = stops[(index + 1) % stops.length];
+        return total + Math.abs(next - stop);
+      }, 0);
+  const cruiseSpeed = travelProgress / Math.max(cycleSeconds - dwellTotal, 1);
+  const entries = stops.map((stop, index) => {
+    const next = vehicle.metroOneWay
+      ? stops[index + 1] ?? stop
+      : stops[(index + 1) % stops.length];
+    const distance = vehicle.metroOneWay
+      ? Math.max(0, next - stop)
+      : Math.abs(next - stop);
+    const direction = vehicle.metroOneWay ? 1 : next >= stop ? 1 : -1;
+
+    return {
+      from: stop,
+      to: next,
+      direction,
+      dwellSeconds: getMetroStopDwellSeconds(vehicle, stop),
+      moveSeconds: distance / Math.max(cruiseSpeed, 0.000001)
+    };
+  });
+
+  vehicle.__metroSchedule = {
+    cycleSeconds,
+    entries
+  };
+
+  return vehicle.__metroSchedule;
+}
+
+function createMetroStopSequence(stops, terminalMargin = 0, oneWay = false) {
+  const minStop = clamp(terminalMargin, 0, 0.12);
+  const maxStop = 1 - minStop;
+  const sortedStops = [...new Set(
+    [minStop, maxStop, ...(stops ?? [])]
+      .filter(Number.isFinite)
+      .map((stop) => Number(clamp(stop, minStop, maxStop).toFixed(5)))
+  )].sort((a, b) => a - b);
+
+  if (oneWay) return sortedStops;
+
+  return [
+    ...sortedStops,
+    ...sortedStops.slice(1, -1).reverse()
+  ];
+}
+
+function getMetroStopDwellSeconds(vehicle, stop) {
+  const terminalMargin = clamp(vehicle.metroTerminalMargin ?? 0, 0, 0.12);
+  const isTerminal = stop <= terminalMargin + 0.00001 || stop >= 1 - terminalMargin - 0.00001;
+  return isTerminal
+    ? vehicle.metroTerminalDwellSeconds ?? 10.5
+    : vehicle.metroDwellSeconds ?? 7.5;
+}
+
+function createMetroTrainMotion(vehicle, centerProgress, direction, braking, stopped) {
+  const carOffset = (vehicle.trainCarOffset ?? 0) * direction;
+
+  return {
+    direction,
+    braking,
+    progress: clamp(centerProgress + carOffset, 0, 1),
+    stopped
+  };
+}
+
+function easeInOutSine(t) {
+  return -(Math.cos(Math.PI * clamp(t, 0, 1)) - 1) / 2;
 }
 
 function isTrafficSignalStop(zone, elapsed) {
@@ -479,6 +1072,7 @@ function isTrafficSignalStop(zone, elapsed) {
 }
 
 function applyFollowingDistance(motion, vehicle, instances, vehicleIndex, elapsed) {
+  if (vehicle.behavior === 'metro-train') return motion;
   if (!vehicle.pathKey || !vehicle.speed || !Array.isArray(instances)) return motion;
 
   let strongestBrake = 0;
@@ -504,6 +1098,7 @@ function applyFollowingDistance(motion, vehicle, instances, vehicleIndex, elapse
 }
 
 function applyIntersectionYield(motion, vehicle, instances, vehicleIndex, elapsed) {
+  if (vehicle.behavior === 'metro-train') return motion;
   if (!vehicle.speed || !Array.isArray(instances)) return motion;
 
   const yieldInfo = getVehicleYieldInfo(vehicle);
@@ -561,6 +1156,7 @@ function getYieldPointDistance(a, b) {
 }
 
 function applyPlayerAvoidance(motion, vehicle, playerPosition) {
+  if (vehicle.behavior === 'metro-train') return motion;
   if (!vehicle.speed || !playerPosition) return motion;
 
   const projection = projectPointToTrafficPath(playerPosition, vehicle.path);
@@ -639,6 +1235,44 @@ function getTrafficPathPose(path, progress) {
   }
 
   const targetDistance = clamp(progress, 0, 1) * totalLength;
+  const pose = sampleTrafficPathAtDistance(points, totalLength, targetDistance);
+  const lookBehind = sampleTrafficPathAtDistance(
+    points,
+    totalLength,
+    Math.max(0, targetDistance - TRAFFIC_TURN_LOOKAHEAD_DISTANCE)
+  );
+  const lookAhead = sampleTrafficPathAtDistance(
+    points,
+    totalLength,
+    Math.min(totalLength, targetDistance + TRAFFIC_TURN_LOOKAHEAD_DISTANCE)
+  );
+  let dx = lookAhead.x - lookBehind.x;
+  let dz = lookAhead.z - lookBehind.z;
+
+  if (Math.hypot(dx, dz) <= 0.000001) {
+    const fallback = getTrafficPathSegmentAtDistance(points, totalLength, targetDistance);
+    dx = fallback.end.x - fallback.start.x;
+    dz = fallback.end.z - fallback.start.z;
+  }
+
+  return {
+    ...pose,
+    yaw: Math.atan2(dx, dz)
+  };
+}
+
+function sampleTrafficPathAtDistance(points, totalLength, distance) {
+  const segment = getTrafficPathSegmentAtDistance(points, totalLength, distance);
+
+  return {
+    x: lerp(segment.start.x, segment.end.x, segment.t),
+    y: getTrafficPoseY(segment.start, segment.end, segment.t),
+    z: lerp(segment.start.z, segment.end.z, segment.t)
+  };
+}
+
+function getTrafficPathSegmentAtDistance(points, totalLength, distance) {
+  const targetDistance = clamp(distance, 0, totalLength);
   let walked = 0;
 
   for (let index = 0; index < points.length - 1; index += 1) {
@@ -649,33 +1283,20 @@ function getTrafficPathPose(path, progress) {
     if (segmentLength <= 0.000001) continue;
 
     if (walked + segmentLength >= targetDistance || index === points.length - 2) {
-      const segmentT = clamp((targetDistance - walked) / segmentLength, 0, 1);
-      const dx = end.x - start.x;
-      const dz = end.z - start.z;
-
-      const forwardYaw = Math.atan2(dx, dz);
-
       return {
-        x: lerp(start.x, end.x, segmentT),
-        y: getTrafficPoseY(start, end, segmentT),
-        z: lerp(start.z, end.z, segmentT),
-        yaw: forwardYaw
+        start,
+        end,
+        t: clamp((targetDistance - walked) / segmentLength, 0, 1)
       };
     }
 
     walked += segmentLength;
   }
 
-  const last = points[points.length - 1];
-  const previous = points[points.length - 2];
-  const dx = last.x - previous.x;
-  const dz = last.z - previous.z;
-
   return {
-    x: last.x,
-    y: last.y,
-    z: last.z,
-    yaw: Math.atan2(dx, dz)
+    start: points[points.length - 2],
+    end: points[points.length - 1],
+    t: 1
   };
 }
 
@@ -690,13 +1311,84 @@ function getTrafficPoseY(start, end, t) {
 
 function getTrafficPathPoints(path) {
   if (Array.isArray(path?.points) && path.points.length >= 2) {
-    return path.points;
+    return getSmoothedTrafficPathPoints(path);
   }
 
   return [
     { x: path?.startX ?? 0, z: path?.startZ ?? 0 },
     { x: path?.endX ?? 0, z: path?.endZ ?? 0 }
   ];
+}
+
+function getSmoothedTrafficPathPoints(path) {
+  if (!shouldSmoothTrafficPath(path)) return path.points;
+  if (path.__smoothedTrafficPointsSource === path.points && path.__smoothedTrafficPoints) {
+    return path.__smoothedTrafficPoints;
+  }
+
+  path.__smoothedTrafficPointsSource = path.points;
+  path.__smoothedTrafficPoints = smoothTrafficPathPoints(
+    path.points,
+    path.pathType === 'bus-route' ? 1 : 2
+  );
+
+  return path.__smoothedTrafficPoints;
+}
+
+function shouldSmoothTrafficPath(path) {
+  return SMOOTH_TRAFFIC_PATH_TYPES.has(path?.pathType) &&
+    Array.isArray(path?.points) &&
+    path.points.length >= 3;
+}
+
+function smoothTrafficPathPoints(points, iterations) {
+  let smoothed = points.map((point) => ({ ...point }));
+
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    if (smoothed.length < 3) break;
+
+    const next = [{ ...smoothed[0] }];
+
+    for (let index = 0; index < smoothed.length - 1; index += 1) {
+      const start = smoothed[index];
+      const end = smoothed[index + 1];
+
+      next.push(lerpTrafficPoint(start, end, 0.25));
+      next.push(lerpTrafficPoint(start, end, 0.75));
+    }
+
+    next.push({ ...smoothed[smoothed.length - 1] });
+    smoothed = dedupeTrafficRenderPoints(next);
+  }
+
+  return smoothed;
+}
+
+function lerpTrafficPoint(start, end, t) {
+  const point = {
+    x: lerp(start.x, end.x, t),
+    z: lerp(start.z, end.z, t)
+  };
+
+  if (Number.isFinite(start.y) || Number.isFinite(end.y)) {
+    point.y = getTrafficPoseY(start, end, t);
+  }
+
+  return point;
+}
+
+function dedupeTrafficRenderPoints(points) {
+  const deduped = [];
+
+  for (const point of points) {
+    const previous = deduped[deduped.length - 1];
+
+    if (!previous || Math.hypot(point.x - previous.x, point.z - previous.z) > 0.15) {
+      deduped.push(point);
+    }
+  }
+
+  return deduped;
 }
 
 function getTrafficPathLength(points) {
@@ -721,7 +1413,7 @@ function getTrafficVehiclePartColor(vehicle, part, elapsed = 0, motion = null) {
     return getTrafficVehicleDynamicLightColor(vehicle, part, elapsed, motion);
   }
 
-  colorObject.set(vehicle.color ?? '#ffffff');
+  colorObject.set(part.colorFromLine ? (vehicle.lineColor ?? '#ffffff') : (vehicle.color ?? '#ffffff'));
 
   if (part.colorLightness) {
     colorObject.offsetHSL(0, 0, part.colorLightness);

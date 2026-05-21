@@ -4,8 +4,8 @@
   "start_url": "/game4/",
   "scope": "/game4/",
   "display": "fullscreen",
-  "background_color": "#101820",
-  "theme_color": "#101820",
+  "background_color": "#171813",
+  "theme_color": "#171813",
   "description": "A lightweight browser driving game with city roads, checkpoints, and multiplayer presence.",
   "icons": [
     {

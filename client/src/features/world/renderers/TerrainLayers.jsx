@@ -1,4 +1,4 @@
-import { CylinderInstances, PlaneInstances } from '../rendering/instanceRenderers.jsx';
+import { ConeInstances, CylinderInstances, PlaneInstances } from '../rendering/instanceRenderers.jsx';
 
 export function TerrainLayers({ batches, worldMaterials }) {
   return (
@@ -26,6 +26,31 @@ export function TerrainLayers({ batches, worldMaterials }) {
         radialSegments={28}
         receiveShadow
         roughness={worldMaterials.island.roughness}
+      />
+      <ConeInstances
+        name="MountainPeakInstances"
+        color="#6f8d66"
+        instances={batches.mountainPeaks}
+        radialSegments={14}
+        castShadow
+        receiveShadow
+        roughness={0.95}
+      />
+      <ConeInstances
+        name="HillMoundInstances"
+        color="#7fb36e"
+        instances={batches.hillMounds}
+        radialSegments={20}
+        receiveShadow
+        roughness={0.96}
+      />
+      <CylinderInstances
+        name="BasinFloorInstances"
+        color="#56736b"
+        instances={batches.basinFloors}
+        radialSegments={32}
+        receiveShadow
+        roughness={0.98}
       />
     </>
   );

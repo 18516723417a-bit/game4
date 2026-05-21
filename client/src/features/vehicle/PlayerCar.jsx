@@ -21,10 +21,12 @@ const neutralInput = {
   nitro: false,
   handbrake: false
 };
+const CAR_VISUAL_RIDE_HEIGHT = 0.16;
 
 export const PlayerCar = forwardRef(function PlayerCar({
   activeColliders = [],
   activeRoadSurfaces = [],
+  autopilotInput = neutralInput,
   config = CAR_CONFIG,
   controlsEnabled = true,
   driverView = false,
@@ -141,13 +143,27 @@ export const PlayerCar = forwardRef(function PlayerCar({
     const vehicleState = vehicleStateRef.current;
     let remainingTime = dt;
 
-    input.forward = Boolean(inputRef.current.forward || touchInput.forward);
-    input.backward = Boolean(inputRef.current.backward || touchInput.backward);
-    input.left = Boolean(inputRef.current.left || touchInput.left);
-    input.right = Boolean(inputRef.current.right || touchInput.right);
+    const manualForward = Boolean(inputRef.current.forward || touchInput.forward);
+    const manualBackward = Boolean(inputRef.current.backward || touchInput.backward);
+    const manualLeft = Boolean(inputRef.current.left || touchInput.left);
+    const manualRight = Boolean(inputRef.current.right || touchInput.right);
+    const manualNitro = Boolean(inputRef.current.nitro || touchInput.nitro);
+    const manualHandbrake = Boolean(inputRef.current.handbrake || touchInput.handbrake);
+    const manualDrivingInput = manualForward ||
+      manualBackward ||
+      manualLeft ||
+      manualRight ||
+      manualNitro ||
+      manualHandbrake;
+    const assistedInput = manualDrivingInput ? neutralInput : autopilotInput;
+
+    input.forward = Boolean(manualForward || assistedInput.forward);
+    input.backward = Boolean(manualBackward || assistedInput.backward);
+    input.left = Boolean(manualLeft || assistedInput.left);
+    input.right = Boolean(manualRight || assistedInput.right);
     input.reset = Boolean(inputRef.current.reset || touchInput.reset);
-    input.nitro = Boolean(inputRef.current.nitro || touchInput.nitro);
-    input.handbrake = Boolean(inputRef.current.handbrake || touchInput.handbrake);
+    input.nitro = Boolean(manualNitro || assistedInput.nitro);
+    input.handbrake = Boolean(manualHandbrake || assistedInput.handbrake);
 
     if (!controlsEnabled || controlsPaused) {
       clearInput();
@@ -223,7 +239,7 @@ export const PlayerCar = forwardRef(function PlayerCar({
       position={[spawnPosition.x, spawnPosition.y, spawnPosition.z]}
       rotation={[0, config.spawn.heading, 0]}
     >
-      <group visible={!driverView}>
+      <group position={[0, CAR_VISUAL_RIDE_HEIGHT, 0]} visible={!driverView}>
       <mesh castShadow receiveShadow position={[0, 0.34, 0]}>
         <boxGeometry args={[2.14, 0.58, 4.36]} />
         <meshStandardMaterial

@@ -156,6 +156,14 @@ export function RoadsideLayers({ batches, playerPosition }) {
       />
       <RoadSignLabelMeshes instances={batches.roadSignLabels} />
       <BoxInstances
+        name="MetroObstacleInstances"
+        color="#05070a"
+        instances={batches.metroObstacles}
+        materialType="basic"
+        receiveShadow={false}
+        castShadow={false}
+      />
+      <BoxInstances
         name="TrafficObstacleInstances"
         instances={batches.trafficObstacles}
         materialType="standard"

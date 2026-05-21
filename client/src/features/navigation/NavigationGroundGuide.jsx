@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useDisposableResource } from '../world/rendering/instanceRenderers.jsx';
 
 const GUIDE_Y = 0.18;
+const GUIDE_SURFACE_OFFSET = 0.16;
 const GUIDE_WIDTH = 2.2;
 const DASH_LENGTH = 18;
 const DASH_SPACING = 34;
@@ -20,8 +21,8 @@ const dashRotation = new THREE.Euler();
 const dashScale = new THREE.Vector3();
 const dashPosition = new THREE.Vector3();
 
-export function NavigationGroundGuide({ enabled, route }) {
-  const guide = useMemo(() => createGuideInstances(route), [route]);
+export function NavigationGroundGuide({ enabled, route, driveSurfaces = [] }) {
+  const guide = useMemo(() => createGuideInstances(route, driveSurfaces), [driveSurfaces, route]);
   const dashGeometry = useDisposableResource(() => new THREE.PlaneGeometry(1, 1), []);
   const dashMaterial = useDisposableResource(
     () => new THREE.MeshBasicMaterial({
@@ -140,7 +141,7 @@ function NavigationGroundGuideArrows({ arrows, geometry, material }) {
   );
 }
 
-function createGuideInstances(route) {
+function createGuideInstances(route, driveSurfaces) {
   if (!route?.segments?.length) {
     return { arrows: [], lines: [] };
   }
@@ -164,13 +165,15 @@ function createGuideInstances(route) {
 
       if (t <= 0.02 || t >= 0.98) continue;
 
+      const x = lerp(segment.start.x, segment.end.x, t);
+      const z = lerp(segment.start.z, segment.end.z, t);
+      const y = getGuideYAt(x, z, driveSurfaces);
+
+      if (!Number.isFinite(y)) continue;
+
       lines.push({
         length: Math.min(DASH_LENGTH, segment.length * 0.46),
-        position: [
-          lerp(segment.start.x, segment.end.x, t),
-          GUIDE_Y,
-          lerp(segment.start.z, segment.end.z, t)
-        ],
+        position: [x, y, z],
         rotationZ: yaw
       });
     }
@@ -183,17 +186,19 @@ function createGuideInstances(route) {
 
       if (t >= 0.96) continue;
 
+      const x = lerp(segment.start.x, segment.end.x, t);
+      const z = lerp(segment.start.z, segment.end.z, t);
+      const y = getGuideYAt(x, z, driveSurfaces);
+
+      if (!Number.isFinite(y)) continue;
+
       arrows.push({
-        position: [
-          lerp(segment.start.x, segment.end.x, t),
-          GUIDE_Y + 0.035,
-          lerp(segment.start.z, segment.end.z, t)
-        ],
+        position: [x, y + 0.035, z],
         rotationZ: yaw
       });
     }
 
-    const turnArrow = createTurnPreviewArrow(segment, route.segments[segmentIndex + 1]);
+    const turnArrow = createTurnPreviewArrow(segment, route.segments[segmentIndex + 1], driveSurfaces);
 
     if (turnArrow && arrows.length < MAX_ARROWS) {
       arrows.push(turnArrow);
@@ -205,7 +210,7 @@ function createGuideInstances(route) {
   return { arrows, lines };
 }
 
-function createTurnPreviewArrow(segment, nextSegment) {
+function createTurnPreviewArrow(segment, nextSegment, driveSurfaces) {
   if (!nextSegment?.start || !nextSegment?.end || nextSegment.length <= 2 || segment.length <= 18) return null;
 
   const currentBearing = getSegmentBearing(segment.start, segment.end);
@@ -217,16 +222,105 @@ function createTurnPreviewArrow(segment, nextSegment) {
 
   const previewDistance = clamp(segment.length - clamp(segment.length * 0.16, 18, 54), 8, segment.length - 4);
   const t = previewDistance / segment.length;
+  const x = lerp(segment.start.x, segment.end.x, t);
+  const z = lerp(segment.start.z, segment.end.z, t);
+  const y = getGuideYAt(x, z, driveSurfaces);
+
+  if (!Number.isFinite(y)) return null;
 
   return {
-    position: [
-      lerp(segment.start.x, segment.end.x, t),
-      GUIDE_Y + 0.07,
-      lerp(segment.start.z, segment.end.z, t)
-    ],
+    position: [x, y + 0.07, z],
     rotationZ: getSegmentBoxYaw(nextSegment.start, nextSegment.end),
     scale: absDelta > Math.PI * 0.72 ? 1.45 : 1.26
   };
+}
+
+function getGuideYAt(x, z, driveSurfaces) {
+  let best = null;
+
+  for (const surface of driveSurfaces ?? []) {
+    const match = getSurfaceYAt(surface, x, z, 3.4);
+    if (!match) continue;
+
+    if (
+      !best ||
+      match.distance < best.distance ||
+      (Math.abs(match.distance - best.distance) < 0.001 && match.y > best.y)
+    ) {
+      best = match;
+    }
+  }
+
+  return best ? best.y + GUIDE_SURFACE_OFFSET : null;
+}
+
+function getSurfaceYAt(surface, x, z, margin = 0) {
+  if (!surface) return null;
+
+  if (surface.shape === 'circle') {
+    const dx = x - surface.centerX;
+    const dz = z - surface.centerZ;
+    const distance = Math.hypot(dx, dz);
+    const radius = (surface.radius ?? 0) + margin;
+
+    return distance <= radius
+      ? { y: getFlatSurfaceY(surface), distance: Math.max(0, distance - (surface.radius ?? 0)) }
+      : null;
+  }
+
+  if (surface.shape === 'segment' || surface.shape === 'ramp' || surface.axis === 'segment') {
+    return getSegmentSurfaceYAt(surface, x, z, margin);
+  }
+
+  const minX = surface.minX - margin;
+  const maxX = surface.maxX + margin;
+  const minZ = surface.minZ - margin;
+  const maxZ = surface.maxZ + margin;
+
+  if (x < minX || x > maxX || z < minZ || z > maxZ) return null;
+
+  return {
+    y: getFlatSurfaceY(surface),
+    distance: Math.min(
+      Math.abs(x - (surface.centerX ?? x)),
+      Math.abs(z - (surface.centerZ ?? z))
+    )
+  };
+}
+
+function getSegmentSurfaceYAt(surface, x, z, margin) {
+  const startX = surface.startX;
+  const startZ = surface.startZ;
+  const endX = surface.endX;
+  const endZ = surface.endZ;
+
+  if (![startX, startZ, endX, endZ].every(Number.isFinite)) return null;
+
+  const dx = endX - startX;
+  const dz = endZ - startZ;
+  const lengthSq = dx * dx + dz * dz;
+
+  if (lengthSq <= 0.000001) return null;
+
+  const t = clamp(((x - startX) * dx + (z - startZ) * dz) / lengthSq, 0, 1);
+  const projectedX = startX + dx * t;
+  const projectedZ = startZ + dz * t;
+  const lateralDistance = Math.hypot(x - projectedX, z - projectedZ);
+  const halfWidth = (surface.width ?? 0) / 2 + margin;
+
+  if (lateralDistance > halfWidth) return null;
+
+  const startY = surface.startY ?? surface.y ?? surface.position?.[1] ?? GUIDE_Y;
+  const endY = surface.endY ?? surface.y ?? surface.position?.[1] ?? startY;
+
+  return {
+    y: lerp(startY, endY, t),
+    distance: lateralDistance
+  };
+}
+
+function getFlatSurfaceY(surface) {
+  return surface.y ?? surface.position?.[1] ?? GUIDE_Y;
 }
 
 function createArrowGeometry() {

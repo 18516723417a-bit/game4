@@ -86,6 +86,83 @@ export const TRANSPORT_HIGHWAY = {
   ]
 };
 
+export const SCENIC_MOUNTAIN = {
+  id: 'scenic-drive-mountain',
+  label: 'Scenic Mountain',
+  type: 'mountain',
+  center: { x: 6100, z: 3150 },
+  radius: 660,
+  height: 96
+};
+
+export const TERRAIN_LANDFORMS = [
+  SCENIC_MOUNTAIN,
+  {
+    id: 'northwest-mountain-a',
+    label: 'NW Peak',
+    type: 'mountain',
+    center: { x: -7350, z: -7200 },
+    radius: 250,
+    height: 92
+  },
+  {
+    id: 'northwest-mountain-b',
+    label: 'NW Ridge',
+    type: 'mountain',
+    center: { x: -6650, z: -7420 },
+    radius: 210,
+    height: 74
+  },
+  {
+    id: 'east-mountain-a',
+    label: 'East Peak',
+    type: 'mountain',
+    center: { x: 7350, z: 1300 },
+    radius: 235,
+    height: 84
+  },
+  {
+    id: 'south-hills-a',
+    label: 'South Hills',
+    type: 'hill',
+    center: { x: -2450, z: 7240 },
+    radius: 220,
+    height: 24
+  },
+  {
+    id: 'south-hills-b',
+    label: 'Garden Hills',
+    type: 'hill',
+    center: { x: 1540, z: 6950 },
+    radius: 190,
+    height: 19
+  },
+  {
+    id: 'west-basin',
+    label: 'West Basin',
+    type: 'basin',
+    center: { x: -5480, z: 980 },
+    radius: 260,
+    height: 0.16
+  },
+  {
+    id: 'east-basin',
+    label: 'East Basin',
+    type: 'basin',
+    center: { x: 5120, z: 2380 },
+    radius: 230,
+    height: 0.16
+  },
+  {
+    id: 'south-basin',
+    label: 'South Basin',
+    type: 'basin',
+    center: { x: 640, z: -7040 },
+    radius: 210,
+    height: 0.16
+  }
+];
+
 export const MAP_FEATURES = [
   {
     id: TRANSPORT_HUBS.airport.id,

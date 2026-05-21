@@ -16,6 +16,7 @@ export function createChunkBatches(chunks, currentKey) {
     ground: [],
     guardrails: [],
     highways: [],
+    hillMounds: [],
     islandGrounds: [],
     laneMarks: [],
     laneMarksYellow: [],
@@ -26,6 +27,8 @@ export function createChunkBatches(chunks, currentKey) {
     localRoads: [],
     mainRoads: [],
     medianBarriers: [],
+    metroObstacles: [],
+    mountainPeaks: [],
     parkingLots: [],
     parkingMarks: [],
     rampRoads: [],
@@ -37,6 +40,7 @@ export function createChunkBatches(chunks, currentKey) {
     sidewalkRails: [],
     sidewalks: [],
     stopBars: [],
+    basinFloors: [],
     treeCanopyAccentsNear: [],
     treeCanopiesNear: [],
     treeTrunksNear: [],
@@ -53,6 +57,7 @@ export function createChunkBatches(chunks, currentKey) {
     tunnelWallPanels: [],
     waterAreas: []
   };
+  const trafficVehicleIds = new Set();
 
   for (const chunk of chunks) {
     const isNear = chunk.key === currentKey;
@@ -77,6 +82,30 @@ export function createChunkBatches(chunks, currentKey) {
       });
     }
 
+    for (const landform of chunk.landforms ?? []) {
+      const instance = {
+        position: landform.position,
+        scale: [landform.radius, landform.height, landform.radius]
+      };
+
+      if (landform.type === 'mountain') {
+        batches.mountainPeaks.push(instance);
+        continue;
+      }
+
+      if (landform.type === 'hill') {
+        batches.hillMounds.push(instance);
+        continue;
+      }
+
+      if (landform.type === 'basin') {
+        batches.basinFloors.push({
+          position: landform.position,
+          scale: [landform.radius, Math.max(0.06, landform.height), landform.radius]
+        });
+      }
+    }
+
     for (const road of chunk.roads) {
       if (road.roadType === 'ramp') {
         const roadScale = road.visualScale ?? road.scale;
@@ -90,12 +119,23 @@ export function createChunkBatches(chunks, currentKey) {
       }
 
       const target = getRoadBatch(batches, road.roadType);
+      const renderSlices = Array.isArray(road.renderSlices)
+        ? road.renderSlices
+        : null;
       const roadScale = road.visualScale ?? road.scale;
-      target.push({
+      const instances = renderSlices ?? [{
         position: road.position,
         rotation: road.rotation ?? [-Math.PI / 2, 0, 0],
-        scale: [roadScale[0], roadScale[1], 1]
-      });
+        scale: [roadScale[0], roadScale[1]]
+      }];
+
+      for (const instance of instances) {
+        target.push({
+          position: instance.position,
+          rotation: instance.rotation ?? [-Math.PI / 2, 0, 0],
+          scale: [instance.scale[0], instance.scale[1], 1]
+        });
+      }
     }
 
     for (const roundabout of chunk.roundabouts ?? []) {
@@ -300,10 +340,18 @@ export function createChunkBatches(chunks, currentKey) {
         continue;
       }
 
+      if (isMetroObstacle(obstacle)) {
+        batches.metroObstacles.push(obstacleInstance);
+        continue;
+      }
+
       batches.trafficObstacles.push(obstacleInstance);
     }
 
     for (const vehicle of chunk.trafficVehicles ?? []) {
+      if (vehicle?.id && trafficVehicleIds.has(vehicle.id)) continue;
+
+      if (vehicle?.id) trafficVehicleIds.add(vehicle.id);
       batches.trafficVehicles.push(vehicle);
     }
 
@@ -431,6 +479,10 @@ function isTunnelWallPanelObstacle(obstacle) {
     obstacle.type === 'transportUnderpassTrenchFloor' ||
     obstacle.type === 'transportUnderpassWall' ||
     obstacle.type === 'transportUnderpassWallTile';
+}
+
+function isMetroObstacle(obstacle) {
+  return typeof obstacle?.type === 'string' && obstacle.type.startsWith('metro');
 }
 
 function getRoadBatch(batches, roadType) {

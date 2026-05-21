@@ -9,6 +9,7 @@ import {
 } from '../ui/language.js';
 import {
   EXPRESSWAY_MAP,
+  TERRAIN_LANDFORMS,
   TRANSPORT_HIGHWAY,
   TRANSPORT_HUBS,
   getExpresswayRampPaths,
@@ -20,6 +21,7 @@ import {
   worldToChunkCoord
 } from './worldConfig.js';
 import { getChunkData } from './ChunkManager.js';
+import { METRO_LINE_DEFINITIONS } from './metroLines.js';
 
 const DEFAULT_MAP_LAYERS = {
   districts: true,
@@ -29,21 +31,23 @@ const DEFAULT_MAP_LAYERS = {
   structures: true,
   airport: true,
   station: true,
+  metro: true,
   tolls: true,
   parking: true,
-  traffic: true
+  terrain: true
 };
 const MAP_LAYER_OPTIONS = [
   { id: 'districts', label: 'Districts' },
   { id: 'roads', label: 'Roads' },
   { id: 'highway', label: 'Highway' },
   { id: 'expressway', label: 'Expressway' },
+  { id: 'terrain', label: 'Terrain' },
   { id: 'structures', label: 'Structures' },
   { id: 'airport', label: 'Airport' },
   { id: 'station', label: 'Station' },
+  { id: 'metro', label: 'Metro' },
   { id: 'tolls', label: 'Tolls' },
-  { id: 'parking', label: 'Parking' },
-  { id: 'traffic', label: 'AI Cars' }
+  { id: 'parking', label: 'Parking' }
 ];
 const DEFAULT_MAP_VIEWPORT = {
   zoom: 1,
@@ -84,6 +88,7 @@ const DISTRICT_LABELS = {
 };
 const DISTRICT_FEATURES = getDistrictFeatures();
 const DISTRICT_LABEL_FEATURES = getDistrictLabelFeatures(DISTRICT_FEATURES);
+const METRO_LINES = createMetroLines();
 
 export function WorldMap({
   cooldownRemaining,
@@ -123,13 +128,14 @@ export function WorldMap({
   const expresswayLabels = getExpresswayLabels();
   const expresswayEntrances = getExpresswayEntrances();
   const transportHighwayFeatures = getTransportHighwayFeatures();
+  const metroMapFeatures = mapLayers.metro ? getMetroMapFeatures() : { routes: [], stations: [] };
   const transportTolls = getTransportTollMarkers();
   const transportStructures = isOpen && mapLayers.structures
     ? getTransportStructureMapFeatures()
     : EMPTY_TRANSPORT_STRUCTURE_MAP;
   const districtFeatures = mapLayers.districts ? DISTRICT_FEATURES : [];
   const districtLabelFeatures = mapLayers.districts ? DISTRICT_LABEL_FEATURES : [];
-  const trafficMarkers = loadedChunks.flatMap(getTrafficVehicleMarkers);
+  const terrainFeatures = mapLayers.terrain ? TERRAIN_LANDFORMS : [];
   const displayedDestinations = navigationDestinations.filter((entry) => shouldShowDestination(entry, mapLayers));
   const t = (key) => getText(language, key);
 
@@ -178,6 +184,13 @@ export function WorldMap({
                 style={getChunkStyle(feature.bounds)}
               />
             ))}
+            {terrainFeatures.map((feature) => (
+              <span
+                key={`mini-landform-${feature.id}`}
+                className={`mini-map__landform mini-map__landform--${feature.type}`}
+                style={getLandformStyle(feature)}
+              />
+            ))}
             {navigationRouteFeatures.map((feature) => (
               <span
                 key={`mini-nav-${feature.id}`}
@@ -192,6 +205,20 @@ export function WorldMap({
                 style={getRoadFeatureStyle(feature)}
               />
             )) : null}
+            {metroMapFeatures.routes.map((feature) => (
+              <span
+                key={`mini-${feature.id}`}
+                className="mini-map__metro"
+                style={getRoadFeatureStyle(feature)}
+              />
+            ))}
+            {metroMapFeatures.stations.map((entry) => (
+              <span
+                key={`mini-metro-station-${entry.id}`}
+                className="mini-map__metro-station"
+                style={{ ...getMarkerStyle(entry.position), '--metro-color': entry.color }}
+              />
+            ))}
             {mapLayers.expressway ? expresswayFeatures.map((feature) => (
               <span
                 key={`mini-${feature.id}`}
@@ -288,6 +315,15 @@ export function WorldMap({
                         style={getChunkStyle(feature.bounds)}
                       />
                     ))}
+                    {terrainFeatures.map((feature) => (
+                      <span
+                        key={feature.id}
+                        className={`world-map-landform world-map-landform--${feature.type}`}
+                        style={getLandformStyle(feature)}
+                      >
+                        <span>{feature.label}</span>
+                      </span>
+                    ))}
                     {loadedChunks.map((chunk) => (
                       <span
                         key={chunk.key}
@@ -325,6 +361,22 @@ export function WorldMap({
                         style={getRoadFeatureStyle(feature)}
                       />
                     )) : null}
+                    {metroMapFeatures.routes.map((feature) => (
+                      <span
+                        key={feature.id}
+                        className="world-map-metro"
+                        style={getRoadFeatureStyle(feature)}
+                      />
+                    ))}
+                    {metroMapFeatures.stations.map((entry) => (
+                      <span
+                        key={entry.id}
+                        className="world-map-metro-station"
+                        style={{ ...getMarkerStyle(entry.position), '--metro-color': entry.color }}
+                      >
+                        {entry.label}
+                      </span>
+                    ))}
                     {transportStructures.routes.map((feature) => (
                       <span
                         key={feature.id}
@@ -381,13 +433,6 @@ export function WorldMap({
                       >
                         {entry.label}
                       </span>
-                    )) : null}
-                    {mapLayers.traffic ? trafficMarkers.map((entry) => (
-                      <span
-                        key={`world-traffic-${entry.id}`}
-                        className={`world-map-traffic ${entry.parked ? 'world-map-traffic--parked' : ''}`}
-                        style={getMarkerStyle(entry.position)}
-                      />
                     )) : null}
                     {displayedDestinations.map((entry) => (
                       <span
@@ -560,8 +605,150 @@ export function getDefaultNavigationDestinations() {
         z: toll.point.z
       }
     })),
+    ...getMetroNavigationDestinations(),
     ...getDefaultTransportStructureDestinations()
   ];
+}
+
+function getMetroNavigationDestinations() {
+  return getMetroStations().map((station) => ({
+    id: `metro-${station.id}`,
+    label: 'Metro Station',
+    shortLabel: 'Metro',
+    type: 'metro',
+    position: {
+      x: station.position.x,
+      y: WORLD_SETTINGS.teleportAnchors.downtown.position[1],
+      z: station.position.z
+    }
+  }));
+}
+
+function getMetroMapFeatures() {
+  return {
+    routes: METRO_LINES.flatMap((line) => (
+      line.points.slice(0, -1).map((point, index) => ({
+        ...createRouteFeature(
+          `metro-${line.id}-route-${index}`,
+          point,
+          line.points[index + 1],
+          32,
+          'metro'
+        ),
+        color: line.color
+      }))
+    )),
+    stations: getMetroStations()
+  };
+}
+
+function getMetroStations() {
+  return METRO_LINES.flatMap((line) => (
+    line.stations.map((station) => ({
+      ...station,
+      color: line.color,
+      position: getMetroStationMapPosition(line, station)
+    }))
+  ));
+}
+
+function getMetroStationMapPosition(line, station) {
+  const basePoint = station.point ?? getMetroLinePointAtT(line, station.t);
+  const offset = station.mapOffset ?? { x: 0, z: 0 };
+
+  return {
+    x: basePoint.x + (offset.x ?? 0),
+    z: basePoint.z + (offset.z ?? 0)
+  };
+}
+
+function createMetroLines() {
+  return METRO_LINE_DEFINITIONS.map((definition) => ({
+    id: definition.id,
+    color: definition.color,
+    points: definition.smooth === false
+      ? definition.controlPoints.map((point) => ({ ...point }))
+      : createSmoothMetroLinePoints(definition.controlPoints, definition.samplesPerSegment ?? 3),
+    stations: definition.stations.map((station) => ({
+      ...station,
+      label: station.label ?? 'Metro',
+      point: station.point ? { ...station.point } : undefined,
+      mapOffset: station.mapOffset ? { ...station.mapOffset } : undefined
+    }))
+  }));
+}
+
+function createSmoothMetroLinePoints(controlPoints, samplesPerSegment = 5) {
+  if (!Array.isArray(controlPoints) || controlPoints.length < 2) return [];
+
+  const points = [];
+
+  for (let index = 0; index < controlPoints.length - 1; index += 1) {
+    const p0 = controlPoints[Math.max(0, index - 1)];
+    const p1 = controlPoints[index];
+    const p2 = controlPoints[index + 1];
+    const p3 = controlPoints[Math.min(controlPoints.length - 1, index + 2)];
+    const sampleCount = samplesPerSegment + 1;
+
+    for (let sample = 0; sample < sampleCount; sample += 1) {
+      if (index > 0 && sample === 0) continue;
+
+      points.push(catmullRomPoint(p0, p1, p2, p3, sample / samplesPerSegment));
+    }
+  }
+
+  return points;
+}
+
+function catmullRomPoint(p0, p1, p2, p3, t) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+
+  return {
+    x: 0.5 * (
+      2 * p1.x +
+      (-p0.x + p2.x) * t +
+      (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+      (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3
+    ),
+    z: 0.5 * (
+      2 * p1.z +
+      (-p0.z + p2.z) * t +
+      (2 * p0.z - 5 * p1.z + 4 * p2.z - p3.z) * t2 +
+      (-p0.z + 3 * p1.z - 3 * p2.z + p3.z) * t3
+    )
+  };
+}
+
+function getMetroLinePointAtT(line, t) {
+  const routeLength = getMetroLineLength(line);
+  let remaining = routeLength * clamp(t, 0, 1);
+
+  for (let index = 0; index < line.points.length - 1; index += 1) {
+    const start = line.points[index];
+    const end = line.points[index + 1];
+    const length = Math.hypot(end.x - start.x, end.z - start.z);
+    if (length <= 0.001) continue;
+
+    if (remaining <= length || index === line.points.length - 2) {
+      const localT = clamp(remaining / length, 0, 1);
+
+      return {
+        x: start.x + (end.x - start.x) * localT,
+        z: start.z + (end.z - start.z) * localT
+      };
+    }
+
+    remaining -= length;
+  }
+
+  return line.points[0] ?? { x: 0, z: 0 };
+}
+
+function getMetroLineLength(line) {
+  return line.points.slice(0, -1).reduce((length, point, index) => (
+    length + Math.hypot(line.points[index + 1].x - point.x, line.points[index + 1].z - point.z)
+  ), 0);
 }
 
 function getDefaultTransportStructureDestinations() {
@@ -684,6 +871,10 @@ function getFeatureStyle(feature) {
     height: `${diameter / WORLD_SETTINGS.worldHeight * 100}%`,
     transform: 'translate(-50%, -50%)'
   };
+}
+
+function getLandformStyle(feature) {
+  return getFeatureStyle(feature);
 }
 
 function getDistrictLabelStyle(feature) {
@@ -1204,6 +1395,7 @@ function getRouteMidpoint(route) {
 function getRoadFeatureStyle(feature) {
   if (Number.isFinite(feature.centerX) && Number.isFinite(feature.centerZ)) {
     return {
+      '--metro-color': feature.color,
       left: `${getWorldXPercent(feature.centerX)}%`,
       top: `${getWorldZPercent(feature.centerZ)}%`,
       width: `${feature.length / WORLD_SETTINGS.worldWidth * 100}%`,
@@ -1254,6 +1446,7 @@ function getTrafficVehicleMarkerPosition(vehicle) {
 function shouldShowDestination(entry, mapLayers) {
   if (entry.type === 'airport') return mapLayers.airport;
   if (entry.type === 'station') return mapLayers.station;
+  if (entry.type === 'metro') return mapLayers.metro;
   if (entry.type === 'toll') return mapLayers.tolls;
   if (entry.type === 'bridge' || entry.type === 'tunnel') return mapLayers.structures;
   return true;
