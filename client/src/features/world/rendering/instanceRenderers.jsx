@@ -11,7 +11,7 @@ const basisScaleVector = new THREE.Vector3();
 export function PlaneInstances({ name, color, instances, metalness = 0, roughness, receiveShadow }) {
   const geometry = useDisposableResource(() => new THREE.PlaneGeometry(1, 1), []);
   const material = useDisposableResource(
-    () => new THREE.MeshStandardMaterial({ color, metalness, roughness }),
+    () => new THREE.MeshStandardMaterial({ color, dithering: true, metalness, roughness }),
     [color, metalness, roughness]
   );
 
@@ -50,6 +50,7 @@ export function BoxInstances({
       return new THREE.MeshBasicMaterial({
         color,
         depthWrite,
+        dithering: true,
         opacity,
         side,
         toneMapped,
@@ -61,6 +62,7 @@ export function BoxInstances({
     return new THREE.MeshStandardMaterial({
       color,
       depthWrite,
+      dithering: true,
       emissive,
       emissiveIntensity,
       metalness,
@@ -114,7 +116,7 @@ export function CylinderInstances({
     [radialSegments]
   );
   const material = useDisposableResource(
-    () => new THREE.MeshStandardMaterial({ color, metalness, roughness }),
+    () => new THREE.MeshStandardMaterial({ color, dithering: true, metalness, roughness }),
     [color, metalness, roughness]
   );
 
@@ -144,7 +146,7 @@ export function ConeInstances({
     [radialSegments]
   );
   const material = useDisposableResource(
-    () => new THREE.MeshStandardMaterial({ color, roughness }),
+    () => new THREE.MeshStandardMaterial({ color, dithering: true, roughness }),
     [color, roughness]
   );
 

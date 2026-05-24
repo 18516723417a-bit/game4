@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { CloudLayer } from './CloudLayer.jsx';
 import { getWeatherPreset } from './weatherPresets.js';
 
-export function WeatherSystem({ mode = 'clear', nightMode = false, targetRef }) {
+export function WeatherSystem({ mode = 'clear', nightMode = false, renderQuality, targetRef }) {
   const preset = getWeatherPreset(mode);
 
   if (mode === 'clear') return null;
@@ -17,17 +17,27 @@ export function WeatherSystem({ mode = 'clear', nightMode = false, targetRef }) 
         <GroundHaze color={preset.fog[nightMode ? 'night' : 'day']} opacity={preset.hazeOpacity} />
       ) : null}
       {preset.precipitation !== 'none' ? (
-        <Precipitation key={mode} preset={preset} targetRef={targetRef} />
+        <Precipitation
+          key={`${mode}-${renderQuality?.precipitationScale ?? 1}`}
+          preset={preset}
+          renderQuality={renderQuality}
+          targetRef={targetRef}
+        />
       ) : null}
       {preset.lightning ? <StormLightning nightMode={nightMode} /> : null}
     </group>
   );
 }
 
-function Precipitation({ preset, targetRef }) {
+function Precipitation({ preset, renderQuality, targetRef }) {
   const linesRef = useRef(null);
   const geometryRef = useRef(null);
-  const positions = useMemo(() => createPrecipitationPositions(preset), [preset]);
+  const effectivePreset = useMemo(
+    () => createEffectivePrecipitationPreset(preset, renderQuality),
+    [preset, renderQuality]
+  );
+  const positions = useMemo(() => createPrecipitationPositions(effectivePreset), [effectivePreset]);
+  const frameStateRef = useRef({ accumulatedDelta: 0, frame: 0 });
   const dropCount = Math.floor(positions.length / 6);
   const lowY = -10;
   const highY = 44;
@@ -39,13 +49,23 @@ function Precipitation({ preset, targetRef }) {
 
     if (!lines || !attribute) return;
 
+    const frameInterval = Math.max(1, Math.floor(renderQuality?.precipitationFrameInterval ?? 1));
+    const frameState = frameStateRef.current;
+    frameState.accumulatedDelta += delta;
+    frameState.frame += 1;
+
+    if (frameInterval > 1 && frameState.frame % frameInterval !== 0) return;
+
+    const stepDelta = frameState.accumulatedDelta;
+    frameState.accumulatedDelta = 0;
+
     const anchor = targetRef?.current?.position ?? camera.position;
     lines.position.set(anchor.x, anchor.y, anchor.z);
 
     const array = attribute.array;
-    const fall = preset.precipitationSpeed * delta;
-    const driftX = (preset.wind?.x ?? 0) * delta * 12;
-    const driftZ = (preset.wind?.z ?? 0) * delta * 12;
+    const fall = effectivePreset.precipitationSpeed * stepDelta;
+    const driftX = (effectivePreset.wind?.x ?? 0) * stepDelta * 12;
+    const driftZ = (effectivePreset.wind?.z ?? 0) * stepDelta * 12;
 
     for (let i = 0; i < array.length; i += 6) {
       array[i] += driftX;
@@ -56,7 +76,7 @@ function Precipitation({ preset, targetRef }) {
       array[i + 5] += driftZ;
 
       if (array[i + 1] < lowY) {
-        resetDrop(array, i, preset, highY);
+        resetDrop(array, i, effectivePreset, highY);
       }
     }
 
@@ -74,13 +94,24 @@ function Precipitation({ preset, targetRef }) {
         />
       </bufferGeometry>
       <lineBasicMaterial
-        color={preset.precipitationColor}
+        color={effectivePreset.precipitationColor}
         depthWrite={false}
-        opacity={preset.precipitationOpacity}
+        opacity={effectivePreset.precipitationOpacity}
         transparent
       />
     </lineSegments>
   );
+}
+
+function createEffectivePrecipitationPreset(preset, renderQuality) {
+  const scale = Math.max(0.25, Math.min(1, renderQuality?.precipitationScale ?? 1));
+  if (scale >= 0.995) return preset;
+
+  return {
+    ...preset,
+    precipitationCount: Math.max(140, Math.round((preset.precipitationCount ?? 800) * scale)),
+    precipitationOpacity: Math.min(0.78, (preset.precipitationOpacity ?? 0.4) * (0.86 + (1 - scale) * 0.22))
+  };
 }
 
 function GroundHaze({ color, opacity }) {

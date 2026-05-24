@@ -4,11 +4,13 @@ import { clamp, clampInt, localOffsetToWorld } from '../utils/math.js';
 export function createChunkBatches(chunks, currentKey) {
   const batches = {
     activeBoundaries: [],
+    airportLights: [],
     boundaries: [],
     billboardPanels: [],
     billboardPoles: [],
     buildingRoofCaps: [],
     buildingRoofUnits: [],
+    buildingFacadeTrims: [],
     buildingWindowBands: [],
     buildingsFarByColor: createBuildingColorBuckets(),
     buildingsNearByColor: createBuildingColorBuckets(),
@@ -32,7 +34,10 @@ export function createChunkBatches(chunks, currentKey) {
     parkingLots: [],
     parkingMarks: [],
     rampRoads: [],
+    roadCrackMarks: [],
     roadCurbs: [],
+    roadEdgeDirt: [],
+    roadWearMarks: [],
     roadSignLabels: [],
     roadSigns: [],
     roundaboutIslands: [],
@@ -136,6 +141,10 @@ export function createChunkBatches(chunks, currentKey) {
           scale: [instance.scale[0], instance.scale[1], 1]
         });
       }
+
+      if (isNear) {
+        addRoadSurfaceDetailInstances(batches, road, instances);
+      }
     }
 
     for (const roundabout of chunk.roundabouts ?? []) {
@@ -150,8 +159,6 @@ export function createChunkBatches(chunks, currentKey) {
     }
 
     for (const mark of chunk.laneMarks) {
-      if (!isNear && !isExpresswayLaneMark(mark)) continue;
-
       const targetLaneMarkBatch = mark.color === 'yellow'
         ? batches.laneMarksYellow
         : batches.laneMarks;
@@ -160,6 +167,22 @@ export function createChunkBatches(chunks, currentKey) {
         position: mark.position,
         rotation: mark.rotation,
         scale: mark.scale
+      });
+    }
+
+    for (const crosswalk of chunk.roadDetails?.crosswalks ?? []) {
+      batches.crosswalkMarks.push({
+        position: crosswalk.position,
+        rotation: crosswalk.rotation,
+        scale: crosswalk.scale
+      });
+    }
+
+    for (const stopBar of chunk.roadDetails?.stopBars ?? []) {
+      batches.stopBars.push({
+        position: stopBar.position,
+        rotation: stopBar.rotation,
+        scale: stopBar.scale
       });
     }
 
@@ -200,22 +223,6 @@ export function createChunkBatches(chunks, currentKey) {
           position: median.position,
           rotation: median.rotation,
           scale: median.scale
-        });
-      }
-
-      for (const crosswalk of chunk.roadDetails?.crosswalks ?? []) {
-        batches.crosswalkMarks.push({
-          position: crosswalk.position,
-          rotation: crosswalk.rotation,
-          scale: crosswalk.scale
-        });
-      }
-
-      for (const stopBar of chunk.roadDetails?.stopBars ?? []) {
-        batches.stopBars.push({
-          position: stopBar.position,
-          rotation: stopBar.rotation,
-          scale: stopBar.scale
         });
       }
 
@@ -319,11 +326,20 @@ export function createChunkBatches(chunks, currentKey) {
     for (const obstacle of chunk.trafficObstacles ?? []) {
       const obstacleInstance = {
         basis: obstacle.basis,
+        blink: obstacle.blink,
         color: obstacle.color,
+        lightKind: obstacle.lightKind,
+        phase: obstacle.phase,
         position: obstacle.position,
         rotation: obstacle.rotation,
-        scale: obstacle.scale
+        scale: obstacle.scale,
+        type: obstacle.type
       };
+
+      if (isAirportLightObstacle(obstacle)) {
+        batches.airportLights.push(obstacleInstance);
+        continue;
+      }
 
       if (obstacle.type === 'transportUnderpassLight') {
         batches.tunnelLights.push(obstacleInstance);
@@ -360,6 +376,161 @@ export function createChunkBatches(chunks, currentKey) {
   return batches;
 }
 
+function addRoadSurfaceDetailInstances(batches, road, roadInstances) {
+  if (!isRoadSurfaceDetailCandidate(road)) return;
+
+  for (let index = 0; index < roadInstances.length; index += 1) {
+    const instance = roadInstances[index];
+    const [centerX, y = 0, centerZ] = instance.position;
+    const [scaleX, scaleZ] = instance.scale;
+    const axis = road.axis;
+    const length = axis === 'x' ? scaleX : scaleZ;
+    const crossWidth = axis === 'x' ? scaleZ : scaleX;
+
+    if (length < 34 || crossWidth < 5.2) continue;
+
+    const surfaceY = y + 0.082;
+    const baseId = `${road.id ?? road.kind ?? 'road'}:${index}`;
+    const wearCount = clampInt(Math.floor(length / 76) + 1, 1, 4);
+    const crackCount = clampInt(Math.floor(length / 118) + 1, 1, 3);
+
+    for (let wearIndex = 0; wearIndex < wearCount; wearIndex += 1) {
+      const along = getRoadDetailAlong(length, baseId, `wear-${wearIndex}`);
+      const laneOffset = getRoadDetailLaneOffset(crossWidth, baseId, `wear-lane-${wearIndex}`);
+      const markLength = 8 + getRoadDetailRandom(baseId, `wear-length-${wearIndex}`) * 17;
+      const yawJitter = (getRoadDetailRandom(baseId, `wear-yaw-${wearIndex}`) - 0.5) * 0.055;
+
+      addRoadDetailBox(
+        batches.roadWearMarks,
+        axis,
+        centerX,
+        centerZ,
+        surfaceY + wearIndex * 0.001,
+        along,
+        laneOffset - 0.24,
+        markLength,
+        0.105,
+        yawJitter
+      );
+      addRoadDetailBox(
+        batches.roadWearMarks,
+        axis,
+        centerX,
+        centerZ,
+        surfaceY + wearIndex * 0.0015,
+        along + markLength * 0.04,
+        laneOffset + 0.24,
+        markLength * 0.92,
+        0.095,
+        yawJitter
+      );
+    }
+
+    for (let crackIndex = 0; crackIndex < crackCount; crackIndex += 1) {
+      const along = getRoadDetailAlong(length, baseId, `crack-${crackIndex}`);
+      const laneOffset = (getRoadDetailRandom(baseId, `crack-lane-${crackIndex}`) - 0.5) * crossWidth * 0.7;
+      const crackLength = 2.2 + getRoadDetailRandom(baseId, `crack-length-${crackIndex}`) * 3.8;
+      const yawJitter = (getRoadDetailRandom(baseId, `crack-yaw-${crackIndex}`) - 0.5) * 0.42;
+
+      addRoadDetailBox(
+        batches.roadCrackMarks,
+        axis,
+        centerX,
+        centerZ,
+        surfaceY + 0.006 + crackIndex * 0.001,
+        along,
+        laneOffset,
+        crackLength,
+        0.048,
+        yawJitter
+      );
+    }
+
+    if (length >= 58) {
+      const dirtLength = Math.min(length - 10, 64 + length * 0.18);
+      const edgeInset = Math.max(1.8, crossWidth * 0.42);
+      const offsetA = getRoadDetailAlong(length, baseId, 'edge-a');
+      const offsetB = getRoadDetailAlong(length, baseId, 'edge-b');
+
+      addRoadDetailBox(
+        batches.roadEdgeDirt,
+        axis,
+        centerX,
+        centerZ,
+        surfaceY + 0.003,
+        offsetA,
+        edgeInset,
+        dirtLength,
+        0.46,
+        0
+      );
+      addRoadDetailBox(
+        batches.roadEdgeDirt,
+        axis,
+        centerX,
+        centerZ,
+        surfaceY + 0.003,
+        offsetB,
+        -edgeInset,
+        dirtLength * 0.82,
+        0.42,
+        0
+      );
+    }
+  }
+}
+
+function isRoadSurfaceDetailCandidate(road) {
+  if (road.roadType === 'parking' || road.kind === 'parking' || road.kind === 'roundabout') return false;
+  if (road.roadType === 'metro' || road.roadType === 'ramp') return false;
+  return road.axis === 'x' || road.axis === 'z';
+}
+
+function addRoadDetailBox(target, axis, centerX, centerZ, y, along, lateral, length, width, yawJitter) {
+  if (axis === 'x') {
+    target.push({
+      position: [centerX + along, y, centerZ + lateral],
+      rotation: [0, yawJitter, 0],
+      scale: [length, 0.024, width]
+    });
+    return;
+  }
+
+  target.push({
+    position: [centerX + lateral, y, centerZ + along],
+    rotation: [0, yawJitter, 0],
+    scale: [width, 0.024, length]
+  });
+}
+
+function getRoadDetailAlong(length, id, salt) {
+  const inset = Math.min(18, Math.max(7, length * 0.14));
+  const usable = Math.max(1, length - inset * 2);
+  return -length / 2 + inset + getRoadDetailRandom(id, salt) * usable;
+}
+
+function getRoadDetailLaneOffset(width, id, salt) {
+  const side = getRoadDetailRandom(id, `${salt}:side`) < 0.5 ? -1 : 1;
+  const lane = Math.min(width * 0.24, 3.7);
+  const wobble = (getRoadDetailRandom(id, `${salt}:wobble`) - 0.5) * Math.min(1.4, width * 0.1);
+  return side * lane + wobble;
+}
+
+function getRoadDetailRandom(id, salt) {
+  return (hashRoadDetail(`${id}:${salt}`) % 10000) / 10000;
+}
+
+function hashRoadDetail(value) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
 function addGroundInstances(batches, bounds, cutouts = []) {
   const groundRects = splitGroundByCutouts(bounds, cutouts);
 
@@ -375,6 +546,64 @@ function addGroundInstances(batches, bounds, cutouts = []) {
       scale: [width, depth, 1]
     });
   }
+
+  addGroundCutoutVoidFills(batches, bounds, cutouts);
+}
+
+function addGroundCutoutVoidFills(batches, bounds, cutouts = []) {
+  for (const cutout of cutouts) {
+    const clipped = {
+      minX: clamp(cutout.minX ?? bounds.minX, bounds.minX, bounds.maxX),
+      maxX: clamp(cutout.maxX ?? bounds.maxX, bounds.minX, bounds.maxX),
+      minZ: clamp(cutout.minZ ?? bounds.minZ, bounds.minZ, bounds.maxZ),
+      maxZ: clamp(cutout.maxZ ?? bounds.maxZ, bounds.minZ, bounds.maxZ)
+    };
+    const width = clipped.maxX - clipped.minX;
+    const depth = clipped.maxZ - clipped.minZ;
+
+    if (width <= 1 || depth <= 1) continue;
+
+    batches.ground.push({
+      position: [(clipped.minX + clipped.maxX) / 2, -13.2, (clipped.minZ + clipped.maxZ) / 2],
+      rotation: [-Math.PI / 2, 0, 0],
+      scale: [width, depth, 1]
+    });
+    if (cutout.skirtWalls !== false) {
+      addGroundCutoutSkirtWalls(batches, clipped, width, depth);
+    }
+  }
+}
+
+function addGroundCutoutSkirtWalls(batches, clipped, width, depth) {
+  const centerX = (clipped.minX + clipped.maxX) / 2;
+  const centerZ = (clipped.minZ + clipped.maxZ) / 2;
+  const wallHeight = 14.4;
+  const wallY = -wallHeight / 2 + 0.08;
+  const thickness = 1.8;
+  const color = '#556268';
+
+  batches.tunnelWallPanels.push(
+    {
+      color,
+      position: [centerX, wallY, clipped.minZ - thickness / 2],
+      scale: [width + thickness * 2, wallHeight, thickness]
+    },
+    {
+      color,
+      position: [centerX, wallY, clipped.maxZ + thickness / 2],
+      scale: [width + thickness * 2, wallHeight, thickness]
+    },
+    {
+      color,
+      position: [clipped.minX - thickness / 2, wallY, centerZ],
+      scale: [thickness, wallHeight, depth + thickness * 2]
+    },
+    {
+      color,
+      position: [clipped.maxX + thickness / 2, wallY, centerZ],
+      scale: [thickness, wallHeight, depth + thickness * 2]
+    }
+  );
 }
 
 function splitGroundByCutouts(bounds, cutouts = []) {
@@ -467,10 +696,6 @@ function addTrafficSignalInstances(batches, signal) {
   }
 }
 
-function isExpresswayLaneMark(mark) {
-  return mark?.roadType === 'highway' || mark?.roadType === 'elevatedHighway' || mark?.roadType === 'ramp';
-}
-
 function isTunnelWallPanelObstacle(obstacle) {
   return obstacle.type === 'transportUnderpassCeiling' ||
     obstacle.type === 'transportUnderpassOverheadDeck' ||
@@ -483,6 +708,10 @@ function isTunnelWallPanelObstacle(obstacle) {
 
 function isMetroObstacle(obstacle) {
   return typeof obstacle?.type === 'string' && obstacle.type.startsWith('metro');
+}
+
+function isAirportLightObstacle(obstacle) {
+  return obstacle?.type === 'airportLight';
 }
 
 function getRoadBatch(batches, roadType) {
@@ -522,6 +751,7 @@ function addBuildingDetails(batches, building) {
     position: [x, topY + 0.09, z],
     scale: [width + 0.8, 0.18, depth + 0.8]
   });
+  addBuildingFacadeTrimInstances(batches, x, z, width, height, depth, baseY);
 
   if (isWarehouse) {
     batches.buildingWindowBands.push({
@@ -612,6 +842,40 @@ function addBuildingDetails(batches, building) {
     position: [x, baseY + height * 0.56, z + depth / 2 + 0.05],
     scale: [Math.max(3, width * 0.64), Math.max(1.8, height * 0.22), 0.08]
   });
+}
+
+function addBuildingFacadeTrimInstances(batches, x, z, width, height, depth, baseY) {
+  const count = clampInt(Math.floor(height / 9), 2, 8);
+  const startY = baseY + Math.min(6, height * 0.18);
+  const step = Math.max(3.8, (height - 5) / (count + 1));
+
+  for (let index = 1; index <= count; index += 1) {
+    const y = startY + step * index;
+
+    batches.buildingFacadeTrims.push(
+      {
+        position: [x, y, z + depth / 2 + 0.065],
+        scale: [Math.max(3.4, width * 0.88), 0.09, 0.08]
+      },
+      {
+        position: [x, y, z - depth / 2 - 0.065],
+        scale: [Math.max(3.4, width * 0.88), 0.09, 0.08]
+      }
+    );
+
+    if (depth < 6) continue;
+
+    batches.buildingFacadeTrims.push(
+      {
+        position: [x + width / 2 + 0.065, y, z],
+        scale: [0.08, 0.09, Math.max(3.4, depth * 0.88)]
+      },
+      {
+        position: [x - width / 2 - 0.065, y, z],
+        scale: [0.08, 0.09, Math.max(3.4, depth * 0.88)]
+      }
+    );
+  }
 }
 
 function addFacadeWindowStrips(batches, x, z, y, span, height, count, side) {

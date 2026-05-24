@@ -7,7 +7,14 @@ import { RoadsideLayers } from './renderers/RoadsideLayers.jsx';
 import { TerrainLayers } from './renderers/TerrainLayers.jsx';
 import { VegetationLayers } from './renderers/VegetationLayers.jsx';
 
-export function ChunkBatchRenderer({ chunks, currentKey, nightMode = false, playerPosition, weatherMode = 'clear' }) {
+export function ChunkBatchRenderer({
+  chunks,
+  currentKey,
+  nightMode = false,
+  playerPosition,
+  renderQuality,
+  weatherMode = 'clear'
+}) {
   const batches = useMemo(
     () => createChunkBatches(chunks, currentKey),
     [chunks, currentKey]
@@ -20,7 +27,12 @@ export function ChunkBatchRenderer({ chunks, currentKey, nightMode = false, play
       <RoadLayers batches={batches} worldMaterials={worldMaterials} />
       <BuildingLayers batches={batches} nightMode={nightMode} weatherMode={weatherMode} worldMaterials={worldMaterials} />
       <VegetationLayers batches={batches} worldMaterials={worldMaterials} />
-      <RoadsideLayers batches={batches} playerPosition={playerPosition} />
+      <RoadsideLayers
+        batches={batches}
+        nightMode={nightMode}
+        playerPosition={playerPosition}
+        renderQuality={renderQuality}
+      />
     </group>
   );
 }

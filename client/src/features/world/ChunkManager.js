@@ -13,6 +13,7 @@ import {
   worldToChunkCoord
 } from './worldConfig.js';
 import { METRO_LINE_DEFINITIONS } from './metroLines.js';
+import { localOffsetToWorld } from './utils/math.js';
 
 const BUILDING_PALETTE = ['#c28f69', '#7898a8', '#a3aa78', '#d1bb78', '#9b89b0'];
 const BILLBOARD_PALETTE = ['#f2d486', '#75b7d8', '#e36d5c', '#9fd08c', '#d9d3ff'];
@@ -238,6 +239,14 @@ const ROAD_PROFILES = {
   local: { width: 8.5, markInterval: 180, markLength: 10 },
   parking: { width: 72, markInterval: 12, markLength: 7 }
 };
+const ROAD_RENDER_Y = {
+  groundRoad: 0.044,
+  local: 0.044,
+  main: 0.046,
+  mainRoad: 0.046,
+  highway: 0.05,
+  parking: 0.04
+};
 const ROAD_SIDES = ['north', 'east', 'south', 'west'];
 const OPPOSITE_SIDE = {
   north: 'south',
@@ -284,7 +293,7 @@ const EXPRESSWAY_WIDTH = EXPRESSWAY_MAP.deckWidth;
 const EXPRESSWAY_RAMP_WIDTH = EXPRESSWAY_MAP.rampWidth;
 const BRIDGE_VERTICAL_CLEARANCE = 3.8;
 const BRIDGE_STACK_GAP = 7.2;
-const EXPRESSWAY_SUPPORT_SPACING = 170;
+const EXPRESSWAY_SUPPORT_SPACING = 50;
 const EXPRESSWAY_GUARDRAIL_HEIGHT = 3.2;
 const EXPRESSWAY_GUARDRAIL_THICKNESS = 0.92;
 const EXPRESSWAY_SUPPORT_ROAD_CLEARANCE = 24;
@@ -296,6 +305,7 @@ const HIGHEST_TRANSPORT_OVERPASS_Y = TRANSPORT_OVERPASS_Y;
 const MIN_EXPRESSWAY_ROUTE_Y = HIGHEST_TRANSPORT_OVERPASS_Y + EXPRESSWAY_GUARDRAIL_HEIGHT + BRIDGE_VERTICAL_CLEARANCE;
 const TRANSPORT_OVERPASS_RAMP_LENGTH = 160;
 const TRANSPORT_OVERPASS_DECK_HALF_LENGTH = 48;
+const TRANSPORT_OVERPASS_SUPPORT_SPACING = 50;
 const TRANSPORT_OVERPASS_HORIZONTAL_CLEARANCE = 18;
 const TRANSPORT_OVERPASS_DETOUR_OFFSETS = [84, 124, 168, 220, 280, 360];
 const TRANSPORT_TUNNEL_TARGET_U = 0.48;
@@ -313,9 +323,9 @@ const FAST_ROAD_TUNNEL_Y = GROUND_DRIVE_Y - 5.65;
 const TRANSPORT_HIGHWAY_TUNNEL_Y = FAST_ROAD_TUNNEL_Y - 6.1;
 const FAST_ROAD_TUNNEL_RAMP_LENGTH = 420;
 const FAST_ROAD_RAMP_CUTOUT_EXTRA_WIDTH = 5.2;
-const FAST_ROAD_TUNNEL_BOX_CLEARANCE = 4.85;
+const FAST_ROAD_TUNNEL_BOX_CLEARANCE = 5.35;
 const FAST_ROAD_TUNNEL_BOX_WALL_THICKNESS = 0.82;
-const FAST_ROAD_TUNNEL_ENVELOPE_PORTAL_INSET = 168;
+const FAST_ROAD_TUNNEL_ENVELOPE_PORTAL_INSET = 72;
 const TRANSPORT_HIGHWAY_TERMINAL_PORTAL_BACKOFF = 150;
 const TRANSPORT_HIGHWAY_TERMINAL_PORTAL_SIDE_OFFSET = TRANSPORT_HIGHWAY.width + 50;
 const TRANSPORT_HIGHWAY_TERMINAL_RAMP_WIDTH = 32;
@@ -334,9 +344,11 @@ const TRANSPORT_SURFACE_TUNNEL_ACCESS_OUTER_OFFSET = TRANSPORT_SURFACE_AVENUE_WI
 const TRANSPORT_SURFACE_TUNNEL_ACCESS_MERGE_OFFSET = TRANSPORT_SURFACE_AVENUE_WIDTH / 6 * 2.5;
 const TRANSPORT_SURFACE_TUNNEL_ACCESS_SIDE_ENTRY_OFFSET = TRANSPORT_SURFACE_AVENUE_WIDTH / 2 + TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH * 0.72;
 const TRANSPORT_SURFACE_TUNNEL_ACCESS_MEDIAN_GAP = 158;
+const TRANSPORT_SURFACE_TUNNEL_ACCESS_SMOOTH_SEGMENTS = 8;
 const SCENIC_MOUNTAIN_ROAD_WIDTH = 11.5;
 const SCENIC_MOUNTAIN_GUARDRAIL_HEIGHT = 1.1;
 const SCENIC_MOUNTAIN_GUARDRAIL_THICKNESS = 0.62;
+const TERRAIN_LANDFORM_BUILDING_CLEARANCE = 8;
 const SCENIC_MOUNTAIN_SUMMIT_PAD_SIZE = 34;
 const CITY_BUS_TERMINAL = { x: -620, z: -620 };
 const CITY_BUS_ROUTES = [
@@ -437,16 +449,23 @@ const METRO_ELEVATED_Y = GROUND_DRIVE_Y + 10.4;
 const METRO_HIGH_ELEVATED_Y = GROUND_DRIVE_Y + 16.2;
 const METRO_GREEN_ELEVATED_Y = GROUND_DRIVE_Y + 22.0;
 const METRO_EXPRESS_ELEVATED_Y = GROUND_DRIVE_Y + 27.6;
-const METRO_TRACK_CENTER_OFFSET = 3.55;
+const METRO_AIRPORT_GREEN_TERMINAL_ELEVATED_Y = GROUND_DRIVE_Y + 5.6;
+const METRO_AIRPORT_PURPLE_TERMINAL_ELEVATED_Y = GROUND_DRIVE_Y + 12.0;
+const METRO_AIRPORT_LOW_ZONE_LENGTH = 1500;
+const METRO_AIRPORT_RAMP_LENGTH = 1180;
+const METRO_TRACK_CENTER_OFFSET = 4.8;
 const METRO_RAIL_HALF_GAUGE = 0.72;
 const METRO_TRACK_GUIDEWAY_WIDTH = 4.25;
 const METRO_GUIDEWAY_WIDTH = 14.4;
 const METRO_BUILDING_CLEARANCE_WIDTH = 78;
 const METRO_PIER_ROAD_CLEARANCE = 15;
+const METRO_PIER_CHUNK_EDGE_CLEARANCE = 38;
+const METRO_PIER_SPACING = 38;
+const METRO_STATION_SUPPORT_SPACING = 50;
 const METRO_SERVICE_HEADWAY_SECONDS = 180;
 const METRO_SERVICE_OFFSETS = [0, 0.25, 0.5, 0.75];
-const METRO_STATION_DWELL_SECONDS = 7.5;
-const METRO_TERMINAL_DWELL_SECONDS = 10.5;
+const METRO_STATION_DWELL_SECONDS = 25;
+const METRO_TERMINAL_DWELL_SECONDS = 30;
 const METRO_TRAIN_CAR_COUNT = 6;
 const METRO_TRAIN_CAR_LENGTH = 17.8;
 const METRO_TRAIN_CAR_GAP = 1.05;
@@ -454,8 +473,42 @@ const METRO_TRAIN_BODY_COLOR = '#f4f7f8';
 const METRO_TRAIN_END_COLOR = '#edf2f4';
 const METRO_STATION_LENGTH = 142;
 const METRO_STATION_PLATFORM_WIDTH = 21.2;
+const METRO_STATION_STRAIGHT_SEARCH_RADIUS = 520;
+const METRO_STATION_STRAIGHT_SEARCH_STEP = 18;
+const METRO_TERMINAL_TURNBACK_DISTANCE = 96;
+const METRO_TERMINAL_STOP_FRONT_CLEARANCE = 3.4;
+const METRO_GANTRY_LATERAL_OFFSET = METRO_GUIDEWAY_WIDTH / 2 + 1.7;
+const METRO_GANTRY_POST_BASE_OFFSET = 0.94;
+const METRO_GANTRY_POST_HEIGHT = 4.78;
+const METRO_GANTRY_BAR_BASE_OFFSET = 5.18;
+const METRO_TERRAIN_TUNNEL_WIDTH = 34;
+const METRO_TERRAIN_TUNNEL_CLEARANCE = 62;
+const METRO_TERRAIN_TUNNEL_ROOF_HEIGHT = 0.72;
+const METRO_TERRAIN_TUNNEL_WALL_HEIGHT = 4.35;
+const METRO_TERRAIN_TUNNEL_TARGETS = [
+  {
+    landformId: SCENIC_MOUNTAIN.id,
+    lineId: 'red',
+    lobeRadiusScale: 0.54,
+    lobeHeightScale: 0.92,
+    clearance: 72
+  },
+  {
+    landformId: 'east-mountain-a',
+    lineId: 'blue',
+    lobeRadiusScale: 0.5,
+    lobeHeightScale: 0.9,
+    clearance: 58
+  }
+];
 const METRO_STRUCTURAL_WHITE = '#07090d';
 const METRO_SOFT_WHITE = '#101419';
+const METRO_STATION_PLATFORM_COLOR = '#c8d3d6';
+const METRO_STATION_CANOPY_COLOR = '#dce5e7';
+const METRO_STATION_COLUMN_COLOR = '#eef4f5';
+const METRO_STATION_GLASS_COLOR = '#24343d';
+const METRO_STATION_ACCESS_COLOR = '#8fa0a6';
+const METRO_STATION_DECK_COLOR = '#b9c7ca';
 const METRO_GUIDEWAY_COLOR = '#05070a';
 const METRO_BLACK = '#05070a';
 const METRO_DARK = '#0b0f14';
@@ -750,11 +803,18 @@ export function generateChunk(chunkX, chunkZ) {
   removeParkingOverlappingRoads(roads, roadColliders, parkingMarks);
   removeUnusedRoadFragments(roads, roadColliders, parkingMarks, bounds);
   removeParkingLotsWithoutAccess(roads, roadColliders, parkingMarks);
-  applySurfaceTunnelAccessVisualGaps(roads, roadColliders);
+  applyFastRoadTunnelOpeningVisualGaps(roads);
+  // Keep the six-lane surface avenue continuous; tunnel accesses branch from side roads.
   removeMetroSupportsOverRoads(transport.trafficObstacles, roads);
+  const structureClearanceColliders = createStructureClearanceColliders([
+    ...transport.trafficObstacles,
+    ...(expressways.trafficObstacles ?? []),
+    ...(expressways.roadSupports ?? [])
+  ]);
   const roadClearanceColliders = createRoadClearanceColliders(roads, roundabouts);
   const generationBlockers = [
     ...roadColliders,
+    ...structureClearanceColliders,
     ...scenicMountain.blockers
   ];
 
@@ -788,8 +848,15 @@ export function generateChunk(chunkX, chunkZ) {
     ...showcase.buildingColliders,
     ...transport.buildingColliders
   ];
+  const terrainBuildingClearanceLandforms = generateTerrainLandformsForBuildingClearance(bounds);
   removeRoadIntrudingBuildings(buildingsWithShowcase, buildingCollidersWithShowcase, generationBlockers, roads);
   removeBuildingsNearMetroClearance(buildingsWithShowcase, buildingCollidersWithShowcase, roadColliders);
+  removeBuildingsNearStructureClearance(buildingsWithShowcase, buildingCollidersWithShowcase, structureClearanceColliders);
+  removeBuildingsInsideTerrainLandforms(
+    buildingsWithShowcase,
+    buildingCollidersWithShowcase,
+    terrainBuildingClearanceLandforms
+  );
   const decorationBlockers = [
     ...roadClearanceColliders,
     ...generationBlockers,
@@ -921,7 +988,15 @@ export function generateChunk(chunkX, chunkZ) {
     ...transport.trafficVehicles,
     ...generateTrafficVehicles(bounds, roads, chunkX, chunkZ, districtProfile)
   ].filter(isTrafficVehicleClearOfTransportHighwayConflict);
-  const terrainLandforms = generateTerrainLandforms(bounds, chunkX, chunkZ);
+  const terrainLandforms = filterTerrainLandformsForBuiltStructures(
+    generateTerrainLandforms(bounds, chunkX, chunkZ),
+    roads,
+    [
+      ...transport.trafficObstacles,
+      ...(expressways.trafficObstacles ?? []),
+      ...(expressways.roadSupports ?? [])
+    ]
+  );
   const safeSpawnPoints = (
     proceduralEnabled || roads.length > 0
       ? generateSafeSpawnPoints(
@@ -1294,19 +1369,209 @@ function generateTerrainLandforms(bounds, chunkX, chunkZ) {
       const owner = worldToChunkCoord({ x: landform.center.x, z: landform.center.z });
       return owner?.chunkX === chunkX && owner?.chunkZ === chunkZ;
     })
-    .map((landform) => ({
-      id: landform.id,
-      label: landform.label,
-      type: landform.type,
-      position: [
-        landform.center.x,
-        landform.type === 'basin' ? 0.018 : landform.height / 2,
-        landform.center.z
-      ],
-      radius: landform.radius,
-      height: landform.height,
-      bounds
-    }));
+    .flatMap((landform) => createTerrainLandformInstances(landform, bounds));
+}
+
+function generateTerrainLandformsForBuildingClearance(bounds) {
+  return TERRAIN_LANDFORMS
+    .filter(isRaisedTerrainLandform)
+    .flatMap((landform) => [
+      createTerrainLandformInstance(landform, bounds),
+      ...createTerrainLandformInstances(landform, bounds)
+    ])
+    .filter((landform) => doesLandformFootprintOverlapChunk(
+      landform,
+      bounds,
+      TERRAIN_LANDFORM_BUILDING_CLEARANCE
+    ));
+}
+
+function createTerrainLandformInstances(landform, bounds) {
+  const tunnelTarget = getMetroTerrainTunnelTargetForLandform(landform);
+  if (!tunnelTarget) return [createTerrainLandformInstance(landform, bounds)];
+
+  const tunnelPose = getMetroTerrainTunnelPoseForLandform(landform, tunnelTarget);
+  if (!tunnelPose) return [createTerrainLandformInstance(landform, bounds)];
+
+  const center = landform.center;
+  const lobeRadius = Math.max(72, landform.radius * tunnelTarget.lobeRadiusScale);
+  const lobeHeight = Math.max(landform.height * 0.58, landform.height * tunnelTarget.lobeHeightScale);
+  const sideOffset = lobeRadius + (tunnelTarget.clearance ?? METRO_TERRAIN_TUNNEL_CLEARANCE);
+  const sideLobes = [-1, 1].map((side) => {
+    const lobeCenter = {
+      x: tunnelPose.point.x + tunnelPose.normal.x * sideOffset * side,
+      z: tunnelPose.point.z + tunnelPose.normal.z * sideOffset * side
+    };
+    const distanceToOriginalCenter = Math.hypot(lobeCenter.x - center.x, lobeCenter.z - center.z);
+
+    return {
+      distanceToOriginalCenter,
+      landform: {
+        ...landform,
+        center: lobeCenter,
+        height: lobeHeight,
+        id: `${landform.id}-metro-tunnel-side-${side > 0 ? 'right' : 'left'}`,
+        label: `${landform.label} Tunnel Shoulder`,
+        radius: lobeRadius
+      }
+    };
+  });
+
+  sideLobes.sort((left, right) => left.distanceToOriginalCenter - right.distanceToOriginalCenter);
+  sideLobes[0].landform.id = landform.id;
+  sideLobes[0].landform.label = landform.label;
+
+  return sideLobes.map((item) => createTerrainLandformInstance(item.landform, bounds));
+}
+
+function createTerrainLandformInstance(landform, bounds) {
+  return {
+    id: landform.id,
+    label: landform.label,
+    type: landform.type,
+    position: [
+      landform.center.x,
+      landform.type === 'basin' ? 0.018 : landform.height / 2,
+      landform.center.z
+    ],
+    radius: landform.radius,
+    height: landform.height,
+    bounds
+  };
+}
+
+function filterTerrainLandformsForBuiltStructures(landforms, roads = [], structureObstacles = []) {
+  return landforms.filter((landform) => !shouldRemoveTerrainLandform(landform, roads, structureObstacles));
+}
+
+function shouldRemoveTerrainLandform(landform, roads, structureObstacles) {
+  if (landform?.type !== 'hill') return false;
+
+  const footprint = getTerrainLandformFootprint(landform);
+  if (!footprint) return false;
+
+  const overlapsRoad = roads.some((road) => (
+    doesCircleOverlapRoadSurface(footprint.x, footprint.z, footprint.radius, road, 10)
+  ));
+  if (overlapsRoad) return true;
+
+  const overlapsStructure = structureObstacles.some((obstacle) => (
+    isStructureClearanceObstacle(obstacle) &&
+    doesLandformOverlapTrafficObstacle(footprint.x, footprint.z, footprint.radius, obstacle, 16)
+  ));
+
+  return overlapsStructure;
+}
+
+function isRaisedTerrainLandform(landform) {
+  return landform?.type === 'hill' || landform?.type === 'mountain';
+}
+
+function getTerrainLandformFootprint(landform) {
+  const [positionX, , positionZ] = landform?.position ?? [];
+  const x = Number.isFinite(positionX) ? positionX : landform?.center?.x;
+  const z = Number.isFinite(positionZ) ? positionZ : landform?.center?.z;
+  const radius = landform?.radius ?? 0;
+
+  if (!Number.isFinite(x) || !Number.isFinite(z) || radius <= 0) return null;
+
+  return { x, z, radius };
+}
+
+function doesLandformFootprintOverlapChunk(landform, bounds, margin = 0) {
+  const footprint = getTerrainLandformFootprint(landform);
+  if (!footprint) return false;
+
+  const radius = footprint.radius + margin;
+  const closestX = clamp(footprint.x, bounds.minX, bounds.maxX);
+  const closestZ = clamp(footprint.z, bounds.minZ, bounds.maxZ);
+  const dx = footprint.x - closestX;
+  const dz = footprint.z - closestZ;
+
+  return dx * dx + dz * dz <= radius * radius;
+}
+
+function doesCircleOverlapRoadSurface(x, z, radius, road, margin = 0) {
+  if (!road) return false;
+
+  const surface = road.surface;
+  const testRadius = radius + margin;
+
+  if (surface?.shape === 'circle') {
+    const dx = x - surface.centerX;
+    const dz = z - surface.centerZ;
+    const limit = testRadius + surface.radius;
+    return dx * dx + dz * dz <= limit * limit;
+  }
+
+  if (surface?.shape === 'segment' || surface?.shape === 'ramp') {
+    return Boolean(getCircleSegmentOverlap(
+      x,
+      z,
+      testRadius,
+      surface.startX,
+      surface.startZ,
+      surface.endX,
+      surface.endZ,
+      (surface.width ?? getRoadCrossWidth(road)) / 2
+    ));
+  }
+
+  if (road.axis === 'segment' && Number.isFinite(road.startX) && Number.isFinite(road.endX)) {
+    return Boolean(getCircleSegmentOverlap(
+      x,
+      z,
+      testRadius,
+      road.startX,
+      road.startZ,
+      road.endX,
+      road.endZ,
+      getRoadCrossWidth(road) / 2
+    ));
+  }
+
+  return doesCircleOverlapCollider(x, z, testRadius, createRoadCollider(road));
+}
+
+function doesLandformOverlapTrafficObstacle(x, z, radius, obstacle, margin = 0) {
+  const collider = createTrafficObstacleFootprintCollider(obstacle, margin);
+  return collider ? doesCircleOverlapCollider(x, z, radius, collider) : false;
+}
+
+function createStructureClearanceColliders(obstacles = []) {
+  return obstacles
+    .filter(isStructureClearanceObstacle)
+    .map((obstacle) => createTrafficObstacleFootprintCollider(obstacle, 7))
+    .filter(Boolean);
+}
+
+function isStructureClearanceObstacle(obstacle) {
+  const type = String(obstacle?.type ?? '');
+  return type === 'roadSupport' ||
+    type === 'transportOverpassSupport' ||
+    type === 'metroPier' ||
+    type === 'metroPierCap';
+}
+
+function createTrafficObstacleFootprintCollider(obstacle, padding = 0) {
+  const [x = 0, , z = 0] = obstacle?.position ?? [];
+  const [width = 0, , depth = 0] = obstacle?.scale ?? [];
+  if (!Number.isFinite(x) || !Number.isFinite(z) || width <= 0 || depth <= 0) return null;
+
+  const yaw = obstacle.rotation?.[1] ?? 0;
+  const cos = Math.abs(Math.cos(yaw));
+  const sin = Math.abs(Math.sin(yaw));
+  const footprintWidth = width * cos + depth * sin + padding * 2;
+  const footprintDepth = width * sin + depth * cos + padding * 2;
+
+  return createBoxCollider(
+    `${obstacle.id ?? 'structure'}-clearance`,
+    'transportStructureClearance',
+    x,
+    z,
+    footprintWidth,
+    footprintDepth
+  );
 }
 
 function generateScenicMountainFeature(bounds, chunkX, chunkZ) {
@@ -1337,7 +1602,6 @@ function generateScenicMountainFeature(bounds, chunkX, chunkZ) {
     ));
   }
 
-  addScenicMountainRoad(data, bounds, chunkX, chunkZ);
   return data;
 }
 
@@ -2896,7 +3160,7 @@ function addTransportSurfaceTunnelAccesses(data, bounds, chunkX, chunkZ) {
       },
       bounds
     );
-    const road = addTransportSlopedRoad(
+    const rampRoads = addTransportSmoothSlopedRoad(
       data,
       chunkId,
       'surface-avenue-tunnel-ramp',
@@ -2914,7 +3178,8 @@ function addTransportSurfaceTunnelAccesses(data, bounds, chunkX, chunkZ) {
         visualStartY: GROUND_DRIVE_Y + 0.04,
         visualEndY: TRANSPORT_HIGHWAY_TUNNEL_Y
       },
-      bounds
+      bounds,
+      TRANSPORT_SURFACE_TUNNEL_ACCESS_SMOOTH_SEGMENTS
     );
     const mergeRoad = addTransportSlopedRoad(
       data,
@@ -2937,13 +3202,16 @@ function addTransportSurfaceTunnelAccesses(data, bounds, chunkX, chunkZ) {
       bounds
     );
 
-    if (!road && !slip && !mergeRoad) continue;
+    if (rampRoads.length === 0 && !slip && !mergeRoad) continue;
 
     addSurfaceTunnelAccessPortalGroundCutouts(data, bounds, `${chunkId}-portal-cutout`, access);
     // Keep the upper mouth open, then close the lower ramp so the descent reads as a tunnel.
     addSurfaceTunnelAccessMergeCover(data, bounds, `${chunkId}-merge-cover`, access);
     addSurfaceTunnelAccessRampCeiling(data, bounds, `${chunkId}-ramp-ceiling`, access);
-    addSurfaceTunnelAccessMainTunnelPocketWalls(data, bounds, `${chunkId}-main-pocket`, access);
+    addSurfaceTunnelAccessRetainingWalls(data, bounds, `${chunkId}-ramp-wall`, access.portal, access.rampEnd);
+    addSurfaceTunnelAccessVoidSkirtWalls(data, bounds, `${chunkId}-void-skirt`, access.portal, access.rampEnd);
+    addSurfaceTunnelAccessCutoutLiners(data, bounds, `${chunkId}-cutout-liner`, access);
+    addSurfaceTunnelAccessMainTunnelVoidShield(data, bounds, `${chunkId}-void-shield`, access);
     addSurfaceTunnelAccessSeparationMarks(data, bounds, `${chunkId}-separation`, access);
     addSurfaceTunnelAccessConnectionPads(data, bounds, `${chunkId}-connection-pad`, access);
     addSurfaceTunnelAccessTunnelZone(data, bounds, `${chunkId}-zone`, access);
@@ -3131,7 +3399,9 @@ function addSurfaceTunnelAccessPortalGroundCutouts(data, bounds, id, access) {
       z: access.portal.z + access.directionVector.z * distance
     };
 
-    addFastRoadPortalClearanceCutout(data, `${id}-${index}`, point, width, bounds);
+    addFastRoadPortalClearanceCutout(data, `${id}-${index}`, point, width, bounds, {
+      skirtWalls: false
+    });
   }
 }
 
@@ -3156,9 +3426,9 @@ function addSurfaceTunnelAccessMergeCover(data, bounds, id, access) {
 }
 
 function addSurfaceTunnelAccessRampCeiling(data, bounds, id, access) {
-  const ceilingStartT = 0.12;
-  const ceilingWidth = TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH + 10;
-  const ceilingClearance = TUNNEL_CLEARANCE_HEIGHT + 0.26;
+  const ceilingStartT = 0.88;
+  const ceilingWidth = TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH + 4.4;
+  const ceilingClearance = TUNNEL_CLEARANCE_HEIGHT + 0.64;
   const ceilingStart = lerpPoint(access.portal, access.rampEnd, ceilingStartT);
   const ceilingEnd = access.rampEnd;
   const startRoadY = lerp(GROUND_DRIVE_Y, TRANSPORT_HIGHWAY_TUNNEL_Y, ceilingStartT);
@@ -3227,7 +3497,7 @@ function addSurfaceTunnelAccessMainTunnelPocketWalls(data, bounds, id, access) {
   );
   if (!projection) return;
 
-  const side = access.side >= 0 ? 1 : -1;
+  const side = getSurfaceTunnelAccessLateralSide(access, tunnelStart, tunnelEnd);
   const tunnelLength = Math.hypot(tunnelEnd.x - tunnelStart.x, tunnelEnd.z - tunnelStart.z);
   const centerDistance = projection.t * tunnelLength;
   const halfOpeningLength = getSurfaceTunnelAccessWallHalfOpeningLength();
@@ -3271,15 +3541,17 @@ function addSurfaceTunnelAccessMainTunnelPocketWalls(data, bounds, id, access) {
       wallBaseY,
       { type: 'transportUnderpassWall' }
     );
-    data.tunnelColliders.push(createHeightLimitedSegmentCollider(
-      `${id}-${wall.label}-collider`,
-      'tunnelWall',
-      clip.start,
-      clip.end,
-      wallThickness + 0.32,
-      wallBaseY - 0.05,
-      wallBaseY + wallHeight + 0.18
-    ));
+    if (wall.label === 'back-wall') {
+      data.tunnelColliders.push(createHeightLimitedSegmentCollider(
+        `${id}-${wall.label}-collider`,
+        'tunnelWall',
+        clip.start,
+        clip.end,
+        wallThickness + 0.32,
+        wallBaseY - 0.05,
+        wallBaseY + wallHeight + 0.18
+      ));
+    }
   }
 }
 
@@ -3391,8 +3663,188 @@ function addSurfaceTunnelAccessTunnelZone(data, bounds, id, access) {
   });
 }
 
+function addSurfaceTunnelAccessCutoutLiners(data, bounds, id, access) {
+  addTransportSlopedObstacle(
+    data,
+    bounds,
+    `${id}-ramp-floor`,
+    access.portal,
+    access.rampEnd,
+    GROUND_DRIVE_Y - 0.11,
+    TRANSPORT_HIGHWAY_TUNNEL_Y - 0.11,
+    TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH + 18,
+    0.09,
+    '#3f494d',
+    'transportUnderpassTrenchFloor'
+  );
+  addTransportSlopedObstacle(
+    data,
+    bounds,
+    `${id}-merge-floor`,
+    access.rampEnd,
+    access.mergePoint,
+    TRANSPORT_HIGHWAY_TUNNEL_Y - 0.13,
+    TRANSPORT_HIGHWAY_TUNNEL_Y - 0.13,
+    TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH + 20,
+    0.09,
+    '#3f494d',
+    'transportUnderpassTrenchFloor'
+  );
+  const mergeTangent = normalizeVector({
+    x: access.mergePoint.x - access.rampEnd.x,
+    z: access.mergePoint.z - access.rampEnd.z
+  });
+  const mergeNormal = { x: -mergeTangent.z, z: mergeTangent.x };
+  const outerSide = getSurfaceTunnelAccessOuterWallSide(access, mergeNormal);
+
+  addSurfaceTunnelAccessSideWalls(
+    data,
+    bounds,
+    `${id}-merge-wall`,
+    access.rampEnd,
+    access.mergePoint,
+    TRANSPORT_HIGHWAY_TUNNEL_Y,
+    TRANSPORT_HIGHWAY_TUNNEL_Y,
+    TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH,
+    {
+      colliders: false,
+      color: '#69747a',
+      lateralExtra: 5.4,
+      sides: [outerSide],
+      wallHeight: TUNNEL_CLEARANCE_HEIGHT + 0.72
+    }
+  );
+
+  const curbOffset = TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH / 2 + 0.38;
+  for (const side of [-1, 1]) {
+    addTransportOffsetSegmentObstacle(
+      data,
+      bounds,
+      `${id}-merge-guide-curb-${side > 0 ? 'right' : 'left'}`,
+      access.rampEnd,
+      access.mergePoint,
+      side * curbOffset,
+      0.34,
+      0.18,
+      '#d7d0bb',
+      TRANSPORT_HIGHWAY_TUNNEL_Y + 0.04,
+      { type: 'surfaceTunnelGuideMark' }
+    );
+  }
+}
+
+function addSurfaceTunnelAccessMainTunnelVoidShield(data, bounds, id, access) {
+  const [highwayStart, highwayEnd] = TRANSPORT_HIGHWAY.points;
+  const tunnelWidth = TRANSPORT_HIGHWAY.width;
+  const lineLength = Math.hypot(highwayEnd.x - highwayStart.x, highwayEnd.z - highwayStart.z);
+  if (lineLength <= FAST_ROAD_TUNNEL_RAMP_LENGTH * 2 + 10) return;
+
+  const tangent = normalizeVector({
+    x: highwayEnd.x - highwayStart.x,
+    z: highwayEnd.z - highwayStart.z
+  });
+  const normal = { x: -tangent.z, z: tangent.x };
+  const tunnelStart = {
+    x: highwayStart.x + tangent.x * FAST_ROAD_TUNNEL_RAMP_LENGTH,
+    z: highwayStart.z + tangent.z * FAST_ROAD_TUNNEL_RAMP_LENGTH
+  };
+  const tunnelEnd = {
+    x: highwayEnd.x - tangent.x * FAST_ROAD_TUNNEL_RAMP_LENGTH,
+    z: highwayEnd.z - tangent.z * FAST_ROAD_TUNNEL_RAMP_LENGTH
+  };
+  const openingPoint = getSurfaceTunnelAccessWallOpeningPoint(access, tunnelStart, tunnelEnd, tunnelWidth);
+  const projection = projectPointToSegment(
+    openingPoint.x,
+    openingPoint.z,
+    tunnelStart.x,
+    tunnelStart.z,
+    tunnelEnd.x,
+    tunnelEnd.z
+  );
+  if (!projection) return;
+
+  const tunnelLength = Math.hypot(tunnelEnd.x - tunnelStart.x, tunnelEnd.z - tunnelStart.z);
+  const centerDistance = projection.t * tunnelLength;
+  const halfLength = getSurfaceTunnelAccessWallHalfOpeningLength() * 0.94;
+  const startDistance = clamp(centerDistance - halfLength, 0, tunnelLength);
+  const endDistance = clamp(centerDistance + halfLength, 0, tunnelLength);
+  if (endDistance - startDistance < 8) return;
+
+  const side = getSurfaceTunnelAccessLateralSide(access, tunnelStart, tunnelEnd);
+  const lateral = side * (tunnelWidth / 2 + TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH + 20);
+  const start = getTunnelPocketPoint(tunnelStart, tangent, normal, startDistance, lateral);
+  const end = getTunnelPocketPoint(tunnelStart, tangent, normal, endDistance, lateral);
+
+  addTransportSegmentObstacle(
+    data,
+    bounds,
+    `${id}-back-wall`,
+    start,
+    end,
+    0.92,
+    TUNNEL_CLEARANCE_HEIGHT + 1.1,
+    '#4f5b61',
+    TRANSPORT_HIGHWAY_TUNNEL_Y - 0.16,
+    { type: 'transportUnderpassWall' }
+  );
+}
+
 function addSurfaceTunnelAccessRetainingWalls(data, bounds, id, start, end) {
-  const clip = clipLineToBounds(start, end, bounds, TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH / 2 + 2.4);
+  addSurfaceTunnelAccessSideWalls(
+    data,
+    bounds,
+    id,
+    start,
+    end,
+    GROUND_DRIVE_Y,
+    TRANSPORT_HIGHWAY_TUNNEL_Y,
+    TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH,
+    {
+      colliders: true,
+      color: '#606b72',
+      lateralExtra: 0.45,
+      wallHeight: TUNNEL_CLEARANCE_HEIGHT + 0.34
+    }
+  );
+}
+
+function addSurfaceTunnelAccessVoidSkirtWalls(data, bounds, id, start, end) {
+  const segmentCount = TRANSPORT_SURFACE_TUNNEL_ACCESS_SMOOTH_SEGMENTS;
+  const skirtRoadWidth = TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH + 7.2;
+
+  for (let index = 0; index < segmentCount; index += 1) {
+    const t0 = index / segmentCount;
+    const t1 = (index + 1) / segmentCount;
+    const segmentStart = lerpPoint(start, end, t0);
+    const segmentEnd = lerpPoint(start, end, t1);
+    const segmentStartY = lerp(GROUND_DRIVE_Y, TRANSPORT_HIGHWAY_TUNNEL_Y, t0);
+    const segmentEndY = lerp(GROUND_DRIVE_Y, TRANSPORT_HIGHWAY_TUNNEL_Y, t1);
+    const wallHeight = Math.max(
+      TUNNEL_CLEARANCE_HEIGHT + 0.9,
+      GROUND_DRIVE_Y - Math.min(segmentStartY, segmentEndY) + 1.15
+    );
+
+    addSurfaceTunnelAccessSideWalls(
+      data,
+      bounds,
+      `${id}-${index}`,
+      segmentStart,
+      segmentEnd,
+      segmentStartY,
+      segmentEndY,
+      skirtRoadWidth,
+      {
+        colliders: false,
+        color: '#536068',
+        lateralExtra: 0.2,
+        wallHeight
+      }
+    );
+  }
+}
+
+function addSurfaceTunnelAccessSideWalls(data, bounds, id, start, end, startY, endY, roadWidth, options = {}) {
+  const clip = clipLineToBounds(start, end, bounds, roadWidth / 2 + 2.4);
   if (!clip) return;
 
   const tangent = normalizeVector({
@@ -3401,14 +3853,17 @@ function addSurfaceTunnelAccessRetainingWalls(data, bounds, id, start, end) {
   });
   const normal = { x: -tangent.z, z: tangent.x };
   const tSpan = Math.max(clip.t1 - clip.t0, 0.0001);
-  const startY = lerp(GROUND_DRIVE_Y, TRANSPORT_HIGHWAY_TUNNEL_Y, clip.t0);
-  const endY = lerp(GROUND_DRIVE_Y, TRANSPORT_HIGHWAY_TUNNEL_Y, clip.t1);
-  const wallHeight = 1.42;
+  const clippedStartY = lerp(startY, endY, clip.t0);
+  const clippedEndY = lerp(startY, endY, clip.t1);
+  const wallHeight = options.wallHeight ?? (TUNNEL_CLEARANCE_HEIGHT + 0.34);
   const wallThickness = 0.72;
+  const lateralExtra = options.lateralExtra ?? 0.45;
+  const color = options.color ?? '#606b72';
+  const sides = options.sides ?? [-1, 1];
 
-  for (const side of [-1, 1]) {
+  for (const side of sides) {
     const sideLabel = side > 0 ? 'right' : 'left';
-    const lateral = side * (TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH / 2 + wallThickness / 2);
+    const lateral = side * (roadWidth / 2 + wallThickness / 2 + lateralExtra);
     const wallStart = offsetPlanarPoint(clip.start, tangent, normal, 0, lateral);
     const wallEnd = offsetPlanarPoint(clip.end, tangent, normal, 0, lateral);
 
@@ -3416,22 +3871,24 @@ function addSurfaceTunnelAccessRetainingWalls(data, bounds, id, start, end) {
       `${id}-retaining-${sideLabel}`,
       wallStart,
       wallEnd,
-      startY - 0.18,
-      endY - 0.18,
+      clippedStartY - 0.18,
+      clippedEndY - 0.18,
       wallHeight,
       wallThickness,
-      '#65725c',
+      color,
       'transportUnderpassWall'
     ));
-    data.tunnelColliders.push(createHeightLimitedSegmentCollider(
-      `${id}-retaining-${sideLabel}-collider`,
-      'tunnelWall',
-      wallStart,
-      wallEnd,
-      wallThickness + 0.22,
-      Math.min(startY, endY) - 0.22,
-      Math.max(startY, endY) + wallHeight + 0.22 * tSpan
-    ));
+    if (options.colliders !== false) {
+      data.tunnelColliders.push(createHeightLimitedSegmentCollider(
+        `${id}-retaining-${sideLabel}-collider`,
+        'tunnelWall',
+        wallStart,
+        wallEnd,
+        wallThickness + 0.22,
+        Math.min(clippedStartY, clippedEndY) - 0.22,
+        Math.max(clippedStartY, clippedEndY) + wallHeight + 0.22 * tSpan
+      ));
+    }
   }
 }
 
@@ -3485,21 +3942,26 @@ function createSmoothMetroLinePoints(controlPoints, samplesPerSegment = 5) {
 }
 
 function createMetroLines() {
-  return METRO_LINE_DEFINITIONS.map((definition) => ({
-    id: definition.id,
-    color: definition.color,
-    elevatedY: getMetroLineElevatedY(definition.elevation),
-    name: definition.name,
-    points: definition.smooth === false
+  return METRO_LINE_DEFINITIONS.map((definition) => {
+    const elevatedY = getMetroLineElevatedY(definition.elevation);
+    const points = definition.smooth === false
       ? definition.controlPoints.map((point) => ({ ...point }))
-      : createSmoothMetroLinePoints(definition.controlPoints, definition.samplesPerSegment ?? 3),
-    serviceOffsets: definition.serviceOffsets ?? METRO_SERVICE_OFFSETS,
-    speedMultiplier: definition.speedMultiplier ?? 1,
-    stations: definition.stations.map((station) => ({
-      ...station,
-      point: station.point ? { ...station.point } : undefined
-    }))
-  }));
+      : createSmoothMetroLinePoints(definition.controlPoints, definition.samplesPerSegment ?? 3);
+
+    return {
+      id: definition.id,
+      color: definition.color,
+      elevatedY,
+      name: definition.name,
+      points: applyMetroVerticalProfile(definition, points, elevatedY),
+      serviceOffsets: definition.serviceOffsets ?? METRO_SERVICE_OFFSETS,
+      speedMultiplier: definition.speedMultiplier ?? 1,
+      stations: definition.stations.map((station) => ({
+        ...station,
+        point: station.point ? { ...station.point } : undefined
+      }))
+    };
+  });
 }
 
 function getMetroLineElevatedY(elevation) {
@@ -3507,6 +3969,48 @@ function getMetroLineElevatedY(elevation) {
   if (elevation === 'green') return METRO_GREEN_ELEVATED_Y;
   if (elevation === 'express') return METRO_EXPRESS_ELEVATED_Y;
   return METRO_ELEVATED_Y;
+}
+
+function applyMetroVerticalProfile(definition, points, elevatedY) {
+  if (!Array.isArray(points) || points.length === 0) return [];
+
+  if (definition.id !== 'green' && definition.id !== 'purple') {
+    return points.map((point) => ({ ...point, y: elevatedY }));
+  }
+
+  let walked = 0;
+
+  return points.map((point, index) => {
+    if (index > 0) {
+      walked += Math.hypot(point.x - points[index - 1].x, point.z - points[index - 1].z);
+    }
+
+    return {
+      ...point,
+      y: getMetroAirportApproachY(definition.id, walked, elevatedY)
+    };
+  });
+}
+
+function getMetroAirportApproachY(lineId, distanceFromAirportTerminal, elevatedY) {
+  const airportY = getMetroAirportTerminalY(lineId, elevatedY);
+  const rampStart = METRO_AIRPORT_LOW_ZONE_LENGTH;
+  const rampEnd = rampStart + METRO_AIRPORT_RAMP_LENGTH;
+
+  if (distanceFromAirportTerminal <= rampStart) return airportY;
+  if (distanceFromAirportTerminal >= rampEnd) return elevatedY;
+
+  return lerp(
+    airportY,
+    elevatedY,
+    (distanceFromAirportTerminal - rampStart) / METRO_AIRPORT_RAMP_LENGTH
+  );
+}
+
+function getMetroAirportTerminalY(lineId, fallbackY) {
+  if (lineId === 'green') return METRO_AIRPORT_GREEN_TERMINAL_ELEVATED_Y;
+  if (lineId === 'purple') return METRO_AIRPORT_PURPLE_TERMINAL_ELEVATED_Y;
+  return fallbackY;
 }
 
 function catmullRomPoint(p0, p1, p2, p3, t) {
@@ -3562,7 +4066,7 @@ function getMetroLinePoseAtDistance(line, distance) {
       const tangent = normalizeVector({ x: end.x - start.x, z: end.z - start.z });
 
       return {
-        point: lerpPoint(start, end, t),
+        point: lerpMetroPoint(start, end, t),
         tangent
       };
     }
@@ -3573,11 +4077,57 @@ function getMetroLinePoseAtDistance(line, distance) {
   return null;
 }
 
+function lerpMetroPoint(start, end, t) {
+  const point = lerpPoint(start, end, t);
+  if (Number.isFinite(start?.y) || Number.isFinite(end?.y)) {
+    point.y = lerp(
+      Number.isFinite(start?.y) ? start.y : end.y,
+      Number.isFinite(end?.y) ? end.y : start.y,
+      t
+    );
+  }
+
+  return point;
+}
+
 function getMetroLinePoseAtT(line, t) {
   return getMetroLinePoseAtDistance(line, getMetroLineLength(line) * clamp(t, 0, 1));
 }
 
 function getMetroLinePoseNearPoint(line, point) {
+  const projection = getMetroLineProjectionNearPoint(line, point);
+  return projection ? getMetroLinePoseAtDistance(line, projection.distance) : null;
+}
+
+function getMetroTerrainTunnelTargetForLandform(landform) {
+  return METRO_TERRAIN_TUNNEL_TARGETS.find((target) => target.landformId === landform?.id) ?? null;
+}
+
+function getMetroTerrainTunnelTargetForLine(line) {
+  return METRO_TERRAIN_TUNNEL_TARGETS.find((target) => target.lineId === line?.id) ?? null;
+}
+
+function getMetroTerrainTunnelLandform(target) {
+  return TERRAIN_LANDFORMS.find((landform) => landform.id === target?.landformId) ?? null;
+}
+
+function getMetroTerrainTunnelPoseForLandform(landform, target) {
+  const line = METRO_LINES.find((item) => item.id === target?.lineId);
+  if (!line || !landform?.center) return null;
+
+  const projection = getMetroLineProjectionNearPoint(line, landform.center);
+  if (!projection) return null;
+
+  const pose = getMetroLinePoseAtDistance(line, projection.distance);
+  if (!pose) return null;
+
+  return {
+    ...pose,
+    normal: { x: -pose.tangent.z, z: pose.tangent.x }
+  };
+}
+
+function getMetroLineProjectionNearPoint(line, point) {
   if (!point || !Array.isArray(line.points) || line.points.length < 2) return null;
 
   let best = null;
@@ -3610,7 +4160,83 @@ function getMetroLinePoseNearPoint(line, point) {
     walked += segmentLength;
   }
 
-  return best ? getMetroLinePoseAtDistance(line, best.distance) : null;
+  return best;
+}
+
+function getMetroStationStraightPose(line, station) {
+  const nominal = station.point
+    ? getMetroLineProjectionNearPoint(line, station.point)
+    : { distance: getMetroLineLength(line) * clamp(station.t ?? 0.5, 0, 1), distanceSq: 0 };
+  if (!nominal) return null;
+
+  const routeLength = getMetroLineLength(line);
+  const halfLength = METRO_STATION_LENGTH / 2 + 8;
+  const minDistance = clamp(nominal.distance - METRO_STATION_STRAIGHT_SEARCH_RADIUS, halfLength, routeLength - halfLength);
+  const maxDistance = clamp(nominal.distance + METRO_STATION_STRAIGHT_SEARCH_RADIUS, halfLength, routeLength - halfLength);
+  let best = null;
+
+  for (let distance = minDistance; distance <= maxDistance + 0.001; distance += METRO_STATION_STRAIGHT_SEARCH_STEP) {
+    const straightness = getMetroLineStraightnessAtDistance(line, distance, halfLength);
+    if (!straightness) continue;
+
+    const centerShift = Math.abs(distance - nominal.distance);
+    const score = straightness.maxLateralDeviation * 16 +
+      straightness.maxAngleDeviation * 220 +
+      centerShift * 0.018;
+
+    if (!best || score < best.score) {
+      best = {
+        ...straightness,
+        centerShift,
+        distance,
+        score
+      };
+    }
+  }
+
+  if (!best) return getMetroLinePoseAtDistance(line, nominal.distance);
+
+  return {
+    point: best.center.point,
+    tangent: best.tangent
+  };
+}
+
+function getMetroLineStraightnessAtDistance(line, distance, halfLength) {
+  const center = getMetroLinePoseAtDistance(line, distance);
+  const start = getMetroLinePoseAtDistance(line, distance - halfLength);
+  const end = getMetroLinePoseAtDistance(line, distance + halfLength);
+  if (!center || !start || !end) return null;
+
+  const tangent = normalizeVector({
+    x: end.point.x - start.point.x,
+    z: end.point.z - start.point.z
+  });
+  const yaw = Math.atan2(tangent.x, tangent.z);
+  const normal = { x: -tangent.z, z: tangent.x };
+  const sampleOffsets = [-halfLength, -halfLength * 0.5, 0, halfLength * 0.5, halfLength];
+  let maxLateralDeviation = 0;
+  let maxAngleDeviation = 0;
+
+  for (const offset of sampleOffsets) {
+    const sample = getMetroLinePoseAtDistance(line, distance + offset);
+    if (!sample) continue;
+
+    const dx = sample.point.x - center.point.x;
+    const dz = sample.point.z - center.point.z;
+    const lateralDeviation = Math.abs(dx * normal.x + dz * normal.z);
+    const sampleYaw = Math.atan2(sample.tangent.x, sample.tangent.z);
+
+    maxLateralDeviation = Math.max(maxLateralDeviation, lateralDeviation);
+    maxAngleDeviation = Math.max(maxAngleDeviation, Math.abs(normalizeAngle(sampleYaw - yaw)));
+  }
+
+  return {
+    center,
+    maxAngleDeviation,
+    maxLateralDeviation,
+    tangent
+  };
 }
 
 function wrapMetroDistance(distance, routeLength) {
@@ -3618,32 +4244,153 @@ function wrapMetroDistance(distance, routeLength) {
   return positiveModulo(distance / routeLength, 1) * routeLength;
 }
 
-function createMetroTrafficPath(line, trackLateral, travelDirection, baseY) {
-  const sourcePoints = travelDirection >= 0 ? line.points : [...line.points].reverse();
+function createMetroTrafficPath(line, physicalTrackSide, travelDirection, baseY) {
+  const trackLateral = physicalTrackSide * METRO_TRACK_CENTER_OFFSET;
+  const offsetPoints = createMetroOffsetPathPoints(line, trackLateral, baseY);
+  const sourcePoints = travelDirection >= 0 ? offsetPoints : [...offsetPoints].reverse();
 
   return {
     customTrafficPath: true,
     pathType: 'metro-line',
-    points: sourcePoints.map((point, index) => {
-      const previous = sourcePoints[Math.max(0, index - 1)];
-      const next = sourcePoints[Math.min(sourcePoints.length - 1, index + 1)];
-      const tangent = normalizeVector({
-        x: next.x - previous.x,
-        z: next.z - previous.z
-      });
-      const normal = { x: -tangent.z, z: tangent.x };
-
-      return {
-        x: point.x + normal.x * trackLateral,
-        y: baseY,
-        z: point.z + normal.z * trackLateral
-      };
-    }),
+    physicalTrackSide,
+    points: sourcePoints,
     startX: sourcePoints[0].x,
     startZ: sourcePoints[0].z,
     endX: sourcePoints[sourcePoints.length - 1].x,
     endZ: sourcePoints[sourcePoints.length - 1].z
   };
+}
+
+function createMetroLoopTrafficPath(line, baseY) {
+  const outboundPoints = createMetroOffsetPathPoints(line, -METRO_TRACK_CENTER_OFFSET, baseY);
+  const inboundRoutePoints = createMetroOffsetPathPoints(line, METRO_TRACK_CENTER_OFFSET, baseY);
+  const outboundStart = outboundPoints[0];
+  const outboundEnd = outboundPoints[outboundPoints.length - 1];
+  const inboundEnd = inboundRoutePoints[inboundRoutePoints.length - 1];
+  const inboundRoutePointsFromEnd = inboundRoutePoints.slice(0, -1).reverse();
+  const points = [
+    ...outboundPoints,
+    inboundEnd,
+    ...inboundRoutePointsFromEnd,
+    outboundStart
+  ];
+  const totalLength = getPlanarPathLength(points);
+  const endCrossoverEndIndex = outboundPoints.length;
+  const inboundRouteStartSegmentIndex = endCrossoverEndIndex;
+  const inboundRouteEndSegmentIndex = Math.max(
+    inboundRouteStartSegmentIndex,
+    inboundRouteStartSegmentIndex + inboundRoutePointsFromEnd.length - 2
+  );
+  const endCrossoverEndDistance = getPlanarPathDistanceAtIndex(points, endCrossoverEndIndex);
+
+  return {
+    customTrafficPath: true,
+    metroLoop: true,
+    metroLoopInboundEndSegmentIndex: inboundRouteEndSegmentIndex,
+    metroLoopInboundStartSegmentIndex: inboundRouteStartSegmentIndex,
+    metroLoopOutboundEndSegmentIndex: Math.max(0, outboundPoints.length - 2),
+    metroLoopSplitIndex: endCrossoverEndIndex,
+    metroLoopTurnbackProgress: totalLength > 0 ? endCrossoverEndDistance / totalLength : 0.5,
+    metroTerminalCrossoverEndDistances: {
+      end: endCrossoverEndDistance,
+      start: totalLength
+    },
+    metroTerminalTurnbackDistance: METRO_TERMINAL_TURNBACK_DISTANCE,
+    pathType: 'metro-line',
+    physicalTrackSide: 0,
+    points,
+    startX: points[0].x,
+    startZ: points[0].z,
+    endX: points[points.length - 1].x,
+    endZ: points[points.length - 1].z
+  };
+}
+
+function getMetroLineEndpointTangent(line, pointIndex) {
+  const points = line.points ?? [];
+  const index = Math.round(clamp(pointIndex, 0, Math.max(0, points.length - 1)));
+  const previous = points[Math.max(0, index - 1)];
+  const next = points[Math.min(points.length - 1, index + 1)];
+
+  return normalizeVector({
+    x: next.x - previous.x,
+    z: next.z - previous.z
+  });
+}
+
+function createMetroTerminalTurnbackMarkerPoint(trackPoint, tangent, direction, y = undefined) {
+  const unit = normalizeVector(tangent);
+  const markerY = Number.isFinite(y) ? y : trackPoint.y;
+  const distances = [
+    METRO_TERMINAL_TURNBACK_DISTANCE,
+    METRO_TERMINAL_TURNBACK_DISTANCE * 0.78,
+    METRO_TERMINAL_TURNBACK_DISTANCE * 0.58,
+    METRO_TERMINAL_TURNBACK_DISTANCE * 0.38
+  ];
+
+  for (const distance of distances) {
+    const point = {
+      x: trackPoint.x + unit.x * direction * distance,
+      y: markerY,
+      z: trackPoint.z + unit.z * direction * distance
+    };
+    if (isPointInsideWorldBounds(point, 12)) return point;
+  }
+
+  return {
+    x: clamp(trackPoint.x + unit.x * direction * METRO_TERMINAL_TURNBACK_DISTANCE * 0.38, WORLD_SETTINGS.worldMinX + 12, WORLD_SETTINGS.worldMaxX - 12),
+    y: markerY,
+    z: clamp(trackPoint.z + unit.z * direction * METRO_TERMINAL_TURNBACK_DISTANCE * 0.38, WORLD_SETTINGS.worldMinZ + 12, WORLD_SETTINGS.worldMaxZ - 12)
+  };
+}
+
+function isPointInsideWorldBounds(point, margin = 0) {
+  return point.x >= WORLD_SETTINGS.worldMinX + margin &&
+    point.x <= WORLD_SETTINGS.worldMaxX - margin &&
+    point.z >= WORLD_SETTINGS.worldMinZ + margin &&
+    point.z <= WORLD_SETTINGS.worldMaxZ - margin;
+}
+
+function createMetroOffsetPathPoints(line, trackLateral, baseY) {
+  const lineBaseY = line.elevatedY ?? METRO_ELEVATED_Y;
+  const verticalOffset = baseY - lineBaseY;
+
+  return line.points.map((point, index) => {
+    const previous = line.points[Math.max(0, index - 1)];
+    const next = line.points[Math.min(line.points.length - 1, index + 1)];
+    const tangent = normalizeVector({
+      x: next.x - previous.x,
+      z: next.z - previous.z
+    });
+    const normal = { x: -tangent.z, z: tangent.x };
+
+    return {
+      x: point.x + normal.x * trackLateral,
+      y: getMetroPointY(point, lineBaseY) + verticalOffset,
+      z: point.z + normal.z * trackLateral
+    };
+  });
+}
+
+function getMetroPointY(point, fallbackY) {
+  return Number.isFinite(point?.y) ? point.y : fallbackY;
+}
+
+function getPlanarPathLength(points = []) {
+  return points.slice(0, -1).reduce((length, point, index) => (
+    length + Math.hypot(points[index + 1].x - point.x, points[index + 1].z - point.z)
+  ), 0);
+}
+
+function getPlanarPathDistanceAtIndex(points = [], targetIndex = 0) {
+  const clampedIndex = Math.round(clamp(targetIndex, 0, Math.max(0, points.length - 1)));
+  let distance = 0;
+
+  for (let index = 0; index < clampedIndex; index += 1) {
+    distance += Math.hypot(points[index + 1].x - points[index].x, points[index + 1].z - points[index].z);
+  }
+
+  return distance;
 }
 
 function sampleMetroTrafficPathAtProgress(path, progress) {
@@ -3672,7 +4419,9 @@ function sampleMetroTrafficPathAtProgress(path, progress) {
   return points[0];
 }
 
-function getMetroStopProgressesForPath(line, path) {
+function getMetroStopProgressesForPath(line, path, terminalStops = []) {
+  if (path?.metroLoop) return getMetroLoopStopProgressesForPath(line, path, terminalStops);
+
   const stops = [0, 1];
 
   for (const station of line.stations ?? []) {
@@ -3686,17 +4435,43 @@ function getMetroStopProgressesForPath(line, path) {
     .sort((a, b) => a - b);
 }
 
-function getMetroPathProgressNearPoint(path, point) {
+function getMetroLoopStopProgressesForPath(line, path, terminalStops = []) {
+  const stops = [...terminalStops];
+  const outboundEndSegmentIndex = path.metroLoopOutboundEndSegmentIndex ??
+    Math.max(0, (path.metroLoopSplitIndex ?? Math.floor((path.points?.length ?? 2) / 2)) - 1);
+  const inboundStartSegmentIndex = path.metroLoopInboundStartSegmentIndex ??
+    (path.metroLoopSplitIndex ?? Math.floor((path.points?.length ?? 2) / 2));
+  const inboundEndSegmentIndex = path.metroLoopInboundEndSegmentIndex ?? (path.points?.length ?? 1) - 2;
+
+  for (const station of line.stations ?? []) {
+    const point = getMetroStationPlacement(line, station)?.point ??
+      station.point ??
+      getMetroLinePoseAtT(line, station.t ?? 0.5)?.point;
+    const outboundProgress = getMetroPathProgressNearPoint(path, point, 0, outboundEndSegmentIndex);
+    const inboundProgress = getMetroPathProgressNearPoint(path, point, inboundStartSegmentIndex, inboundEndSegmentIndex);
+
+    if (Number.isFinite(outboundProgress)) stops.push(outboundProgress);
+    if (Number.isFinite(inboundProgress)) stops.push(inboundProgress);
+  }
+
+  return [...new Set(stops.map((stop) => Number(positiveModulo(stop, 1).toFixed(5))))]
+    .sort((a, b) => a - b);
+}
+
+function getMetroPathProgressNearPoint(path, point, startSegmentIndex = 0, endSegmentIndex = null) {
   const points = path?.points ?? [];
   if (!point || points.length < 2) return Number.NaN;
 
-  const totalLength = points.slice(0, -1).reduce((length, item, index) => (
-    length + Math.hypot(points[index + 1].x - item.x, points[index + 1].z - item.z)
-  ), 0);
+  const totalLength = getPlanarPathLength(points);
   if (totalLength <= 0.001) return Number.NaN;
 
   let best = null;
   let walked = 0;
+  const lastSegmentIndex = Math.min(
+    points.length - 2,
+    Number.isFinite(endSegmentIndex) ? endSegmentIndex : points.length - 2
+  );
+  const firstSegmentIndex = Math.max(0, startSegmentIndex);
 
   for (let index = 0; index < points.length - 1; index += 1) {
     const start = points[index];
@@ -3708,16 +4483,18 @@ function getMetroPathProgressNearPoint(path, point) {
 
     if (lengthSq <= 0.000001) continue;
 
-    const t = clamp(((point.x - start.x) * dx + (point.z - start.z) * dz) / lengthSq, 0, 1);
-    const x = start.x + dx * t;
-    const z = start.z + dz * t;
-    const distanceSq = (point.x - x) ** 2 + (point.z - z) ** 2;
+    if (index >= firstSegmentIndex && index <= lastSegmentIndex) {
+      const t = clamp(((point.x - start.x) * dx + (point.z - start.z) * dz) / lengthSq, 0, 1);
+      const x = start.x + dx * t;
+      const z = start.z + dz * t;
+      const distanceSq = (point.x - x) ** 2 + (point.z - z) ** 2;
 
-    if (!best || distanceSq < best.distanceSq) {
-      best = {
-        distanceSq,
-        progress: (walked + segmentLength * t) / totalLength
-      };
+      if (!best || distanceSq < best.distanceSq) {
+        best = {
+          distanceSq,
+          progress: (walked + segmentLength * t) / totalLength
+        };
+      }
     }
 
     walked += segmentLength;
@@ -3737,8 +4514,42 @@ function doesMetroPathTouchChunk(path, bounds, padding = 72) {
   return false;
 }
 
+function createTrafficPathRenderBounds(path, padding = 0) {
+  const points = path?.points ?? [];
+  if (points.length === 0) return null;
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+
+  for (const point of points) {
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.z)) continue;
+
+    minX = Math.min(minX, point.x);
+    maxX = Math.max(maxX, point.x);
+    minZ = Math.min(minZ, point.z);
+    maxZ = Math.max(maxZ, point.z);
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minZ) || !Number.isFinite(maxZ)) {
+    return null;
+  }
+
+  return {
+    minX: minX - padding,
+    maxX: maxX + padding,
+    minZ: minZ - padding,
+    maxZ: maxZ + padding
+  };
+}
+
 function addMetroTransitFeatures(data, bounds, chunkX, chunkZ, groundRoads = []) {
-  const pierClearanceRoads = [...data.roads, ...groundRoads];
+  const pierClearanceRoads = [
+    ...data.roads,
+    ...groundRoads,
+    ...(data.bridgeAvoidanceRoads ?? [])
+  ];
 
   for (const line of METRO_LINES) {
     for (let index = 0; index < line.points.length - 1; index += 1) {
@@ -3752,6 +4563,8 @@ function addMetroTransitFeatures(data, bounds, chunkX, chunkZ, groundRoads = [])
         pierClearanceRoads
       );
     }
+
+    addMetroTerminalTurnbacks(data, bounds, line);
   }
 
   for (const line of METRO_LINES) {
@@ -3768,6 +4581,8 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
 
   const id = `metro-${line.id}-line-${segmentIndex}`;
   const elevatedY = line.elevatedY ?? METRO_ELEVATED_Y;
+  const startY = getMetroPointY(start, elevatedY);
+  const endY = getMetroPointY(end, elevatedY);
   const tangent = normalizeVector({
     x: end.x - start.x,
     z: end.z - start.z
@@ -3781,7 +4596,7 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
     const trackCenter = trackSide * METRO_TRACK_CENTER_OFFSET;
     const trackLabel = trackSide > 0 ? 'outbound' : 'inbound';
 
-    addTransportOffsetSegmentObstacle(
+    addTransportSlopedOffsetSegmentObstacle(
       data,
       bounds,
       `${id}-track-${trackLabel}-guideway`,
@@ -3791,12 +4606,13 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
       METRO_TRACK_GUIDEWAY_WIDTH,
       0.58,
       METRO_GUIDEWAY_COLOR,
-      elevatedY,
+      startY,
+      endY,
       { type: 'metroGuideway' }
     );
 
     for (const edgeSide of [-1, 1]) {
-      addTransportOffsetSegmentObstacle(
+      addTransportSlopedOffsetSegmentObstacle(
         data,
         bounds,
         `${id}-track-${trackLabel}-parapet-${edgeSide > 0 ? 'right' : 'left'}`,
@@ -3806,13 +4622,14 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
         0.24,
         0.52,
         METRO_STRUCTURAL_WHITE,
-        elevatedY + 0.34,
+        startY + 0.34,
+        endY + 0.34,
         { type: 'metroParapet' }
       );
     }
 
     for (const railSide of [-1, 1]) {
-      addTransportOffsetSegmentObstacle(
+      addTransportSlopedOffsetSegmentObstacle(
         data,
         bounds,
         `${id}-track-${trackLabel}-rail-${railSide > 0 ? 'right' : 'left'}`,
@@ -3822,12 +4639,13 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
         0.22,
         0.2,
         METRO_RAIL_COLOR,
-        elevatedY + 0.62,
+        startY + 0.62,
+        endY + 0.62,
         { type: 'metroRail' }
       );
     }
 
-    addTransportOffsetSegmentObstacle(
+    addTransportSlopedOffsetSegmentObstacle(
       data,
       bounds,
       `${id}-track-${trackLabel}-power-rail`,
@@ -3837,7 +4655,8 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
       0.14,
       0.14,
       METRO_SOFT_WHITE,
-      elevatedY + 0.68,
+      startY + 0.68,
+      endY + 0.68,
       { type: 'metroPowerRail' }
     );
   }
@@ -3847,6 +4666,7 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
     const distance = clamp(sleeperIndex * (length / sleeperCount), 8, length - 8);
     const x = start.x + tangent.x * distance;
     const z = start.z + tangent.z * distance;
+    const sampleY = lerp(startY, endY, distance / length);
 
     for (const trackSide of [-1, 1]) {
       addMetroObstacle(
@@ -3855,7 +4675,7 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
         `${id}-sleeper-${sleeperIndex}-${trackSide > 0 ? 'outbound' : 'inbound'}`,
         x + normal.x * trackSide * METRO_TRACK_CENTER_OFFSET,
         z + normal.z * trackSide * METRO_TRACK_CENTER_OFFSET,
-        elevatedY + 0.54,
+        sampleY + 0.54,
         METRO_RAIL_HALF_GAUGE * 2 + 0.9,
         0.14,
         0.36,
@@ -3866,13 +4686,14 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
     }
   }
 
-  const pierSpacing = 64;
-  const pierCount = Math.max(1, Math.floor(length / pierSpacing));
-  for (let pierIndex = 0; pierIndex <= pierCount; pierIndex += 1) {
-    const distance = clamp(pierIndex * (length / pierCount), 18, length - 18);
+  addMetroTerrainTunnelSegment(data, bounds, line, start, end, segmentIndex, elevatedY);
+
+  const pierDistances = getRegularInteriorDistances(length, METRO_PIER_SPACING, 18);
+  for (const [pierIndex, distance] of pierDistances.entries()) {
     const x = start.x + tangent.x * distance;
     const z = start.z + tangent.z * distance;
-    const pierPlacement = getMetroPierPlacementAtPoint(x, z, normal, bounds, pierClearanceRoads);
+    const sampleY = lerp(startY, endY, distance / length);
+    const pierPlacement = getMetroPierPlacementAtPoint(x, z, tangent, normal, bounds, pierClearanceRoads);
     if (!pierPlacement) continue;
 
     addMetroObstacle(
@@ -3883,7 +4704,7 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
       pierPlacement.z,
       GROUND_DRIVE_Y,
       pierPlacement.width,
-      elevatedY - GROUND_DRIVE_Y,
+      sampleY - GROUND_DRIVE_Y,
       pierPlacement.depth,
       METRO_STRUCTURAL_WHITE,
       yaw,
@@ -3895,7 +4716,7 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
       `${id}-pier-cap-${pierIndex}`,
       pierPlacement.x,
       pierPlacement.z,
-      elevatedY - 0.16,
+      sampleY - 0.16,
       pierPlacement.offset === 0 ? METRO_GUIDEWAY_WIDTH + 1.6 : 2.8,
       0.42,
       2.4,
@@ -3903,22 +4724,6 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
       yaw,
       'metroPierCap'
     );
-    if (pierPlacement.offset !== 0) {
-      addMetroObstacle(
-        data,
-        bounds,
-        `${id}-pier-side-arm-${pierIndex}`,
-        (x + pierPlacement.x) / 2,
-        (z + pierPlacement.z) / 2,
-        elevatedY - 0.38,
-        Math.abs(pierPlacement.offset) + 1.6,
-        0.32,
-        1.55,
-        METRO_STRUCTURAL_WHITE,
-        yaw + Math.PI / 2,
-        'metroPierBrace'
-      );
-    }
   }
 
   const gantryCount = Math.max(2, Math.floor(length / 170));
@@ -3928,17 +4733,18 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
       x: start.x + tangent.x * distance,
       z: start.z + tangent.z * distance
     };
+    const sampleY = lerp(startY, endY, distance / length);
 
     for (const side of [-1, 1]) {
       addMetroObstacle(
         data,
         bounds,
         `${id}-gantry-post-${gantryIndex}-${side}`,
-        center.x + normal.x * side * 4.8,
-        center.z + normal.z * side * 4.8,
-        elevatedY + 0.92,
+        center.x + normal.x * side * METRO_GANTRY_LATERAL_OFFSET,
+        center.z + normal.z * side * METRO_GANTRY_LATERAL_OFFSET,
+        sampleY + METRO_GANTRY_POST_BASE_OFFSET,
         0.18,
-        2.2,
+        METRO_GANTRY_POST_HEIGHT,
         0.18,
         METRO_STRUCTURAL_WHITE,
         yaw,
@@ -3952,9 +4758,9 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
       `${id}-gantry-bar-${gantryIndex}`,
       center.x,
       center.z,
-      elevatedY + 3.0,
-      METRO_GUIDEWAY_WIDTH + 1.6,
-      0.18,
+      sampleY + METRO_GANTRY_BAR_BASE_OFFSET,
+      METRO_GUIDEWAY_WIDTH + 4.2,
+      0.24,
       0.22,
       METRO_STRUCTURAL_WHITE,
       yaw,
@@ -3963,27 +4769,355 @@ function addMetroTrackSegment(data, bounds, line, start, end, segmentIndex, pier
   }
 }
 
-function getMetroPierPlacementAtPoint(x, z, normal, bounds, pierClearanceRoads = []) {
-  const sideOffset = METRO_GUIDEWAY_WIDTH / 2 + 2.8;
-  const wideSideOffset = METRO_GUIDEWAY_WIDTH / 2 + 7.2;
-  const candidates = [
+function addMetroTerminalTurnbacks(data, bounds, line) {
+  if (!Array.isArray(line.points) || line.points.length < 2) return;
+
+  const elevatedY = line.elevatedY ?? METRO_ELEVATED_Y;
+  const outboundPoints = createMetroOffsetPathPoints(line, -METRO_TRACK_CENTER_OFFSET, elevatedY);
+  const inboundPoints = createMetroOffsetPathPoints(line, METRO_TRACK_CENTER_OFFSET, elevatedY);
+  const startTangent = getMetroLineEndpointTangent(line, 0);
+  const endTangent = getMetroLineEndpointTangent(line, line.points.length - 1);
+  const outboundStart = outboundPoints[0];
+  const outboundEnd = outboundPoints[outboundPoints.length - 1];
+  const inboundStart = inboundPoints[0];
+  const inboundEnd = inboundPoints[inboundPoints.length - 1];
+  const endMarker = createMetroTerminalTurnbackMarkerPoint(inboundEnd, endTangent, 1, inboundEnd.y);
+  const startMarker = createMetroTerminalTurnbackMarkerPoint(outboundStart, startTangent, -1, outboundStart.y);
+
+  addMetroTerminalTurnbackTrack(
+    data,
+    bounds,
+    `metro-${line.id}-terminal-end-turnback`,
+    outboundEnd,
+    inboundEnd,
+    endMarker,
+    endTangent,
+    elevatedY,
+    line.color
+  );
+  addMetroTerminalTurnbackTrack(
+    data,
+    bounds,
+    `metro-${line.id}-terminal-start-turnback`,
+    inboundStart,
+    outboundStart,
+    startMarker,
+    { x: -startTangent.x, z: -startTangent.z },
+    elevatedY,
+    line.color
+  );
+}
+
+function addMetroTerminalTurnbackTrack(data, bounds, id, approachPoint, departurePoint, markerPoint, markerTangent, elevatedY, lineColor) {
+  addMetroSingleTrackSegment(data, bounds, `${id}-crossover`, approachPoint, departurePoint, elevatedY);
+  addMetroSingleTrackSegment(data, bounds, `${id}-pocket`, departurePoint, markerPoint, elevatedY);
+
+  const tangent = normalizeVector(markerTangent);
+  const normal = { x: -tangent.z, z: tangent.x };
+  const markerYaw = Math.atan2(tangent.x, tangent.z);
+  const markerY = getMetroPointY(markerPoint, elevatedY);
+
+  addMetroObstacle(
+    data,
+    bounds,
+    `${id}-marker-post`,
+    markerPoint.x + normal.x * (METRO_TRACK_GUIDEWAY_WIDTH / 2 + 1.7),
+    markerPoint.z + normal.z * (METRO_TRACK_GUIDEWAY_WIDTH / 2 + 1.7),
+    markerY + 0.78,
+    0.34,
+    3.8,
+    0.34,
+    METRO_STRUCTURAL_WHITE,
+    markerYaw,
+    'metroTerminalTurnbackMarker'
+  );
+  addMetroObstacle(
+    data,
+    bounds,
+    `${id}-marker-board`,
+    markerPoint.x + normal.x * (METRO_TRACK_GUIDEWAY_WIDTH / 2 + 1.7) + tangent.x * 0.08,
+    markerPoint.z + normal.z * (METRO_TRACK_GUIDEWAY_WIDTH / 2 + 1.7) + tangent.z * 0.08,
+    markerY + 4.34,
+    2.2,
+    1.35,
+    0.26,
+    lineColor ?? METRO_WARM_LIGHT,
+    markerYaw,
+    'metroTerminalTurnbackMarker'
+  );
+}
+
+function addMetroSingleTrackSegment(data, bounds, id, start, end, elevatedY) {
+  const length = Math.hypot(end.x - start.x, end.z - start.z);
+  if (length <= 0.5) return;
+  const startY = getMetroPointY(start, elevatedY);
+  const endY = getMetroPointY(end, elevatedY);
+
+  addTransportSlopedOffsetSegmentObstacle(
+    data,
+    bounds,
+    `${id}-guideway`,
+    start,
+    end,
+    0,
+    METRO_TRACK_GUIDEWAY_WIDTH,
+    0.58,
+    METRO_GUIDEWAY_COLOR,
+    startY,
+    endY,
+    { type: 'metroGuideway' }
+  );
+
+  for (const edgeSide of [-1, 1]) {
+    addTransportSlopedOffsetSegmentObstacle(
+      data,
+      bounds,
+      `${id}-parapet-${edgeSide > 0 ? 'right' : 'left'}`,
+      start,
+      end,
+      edgeSide * (METRO_TRACK_GUIDEWAY_WIDTH / 2 - 0.26),
+      0.24,
+      0.52,
+      METRO_STRUCTURAL_WHITE,
+      startY + 0.34,
+      endY + 0.34,
+      { type: 'metroParapet' }
+    );
+  }
+
+  for (const railSide of [-1, 1]) {
+    addTransportSlopedOffsetSegmentObstacle(
+      data,
+      bounds,
+      `${id}-rail-${railSide > 0 ? 'right' : 'left'}`,
+      start,
+      end,
+      railSide * METRO_RAIL_HALF_GAUGE,
+      0.22,
+      0.2,
+      METRO_RAIL_COLOR,
+      startY + 0.62,
+      endY + 0.62,
+      { type: 'metroRail' }
+    );
+  }
+
+  addTransportSlopedOffsetSegmentObstacle(
+    data,
+    bounds,
+    `${id}-power-rail`,
+    start,
+    end,
+    0,
+    0.14,
+    0.14,
+    METRO_SOFT_WHITE,
+    startY + 0.68,
+    endY + 0.68,
+    { type: 'metroPowerRail' }
+  );
+}
+
+function addMetroTerrainTunnelSegment(data, bounds, line, start, end, segmentIndex, elevatedY) {
+  const tunnelTarget = getMetroTerrainTunnelTargetForLine(line);
+  const landform = getMetroTerrainTunnelLandform(tunnelTarget);
+  if (!tunnelTarget || !landform) return;
+
+  const tunnelClip = clipLineSegmentToCircle(
+    start,
+    end,
+    landform.center,
+    Math.max(24, landform.radius - 20)
+  );
+  if (!tunnelClip || tunnelClip.t1 - tunnelClip.t0 <= 0.001) return;
+
+  const clippedStart = lerpPoint(start, end, tunnelClip.t0);
+  const clippedEnd = lerpPoint(start, end, tunnelClip.t1);
+  const length = Math.hypot(clippedEnd.x - clippedStart.x, clippedEnd.z - clippedStart.z);
+  if (length <= 1.5) return;
+
+  const id = `metro-${line.id}-terrain-tunnel-${segmentIndex}`;
+  const tangent = normalizeVector({
+    x: clippedEnd.x - clippedStart.x,
+    z: clippedEnd.z - clippedStart.z
+  });
+  const normal = { x: -tangent.z, z: tangent.x };
+
+  addTransportSegmentObstacle(
+    data,
+    bounds,
+    `${id}-roof`,
+    clippedStart,
+    clippedEnd,
+    METRO_TERRAIN_TUNNEL_WIDTH + 2.4,
+    METRO_TERRAIN_TUNNEL_ROOF_HEIGHT,
+    '#59666c',
+    elevatedY + METRO_TERRAIN_TUNNEL_WALL_HEIGHT + 0.34,
+    { type: 'metroTerrainTunnelRoof' }
+  );
+
+  addTransportSegmentObstacle(
+    data,
+    bounds,
+    `${id}-trackbed-shadow`,
+    clippedStart,
+    clippedEnd,
+    METRO_TERRAIN_TUNNEL_WIDTH - 4,
+    0.1,
+    '#151b20',
+    elevatedY + 0.02,
+    { type: 'metroTerrainTunnelFloor' }
+  );
+
+  for (const side of [-1, 1]) {
+    addTransportOffsetSegmentObstacle(
+      data,
+      bounds,
+      `${id}-side-wall-${side > 0 ? 'right' : 'left'}`,
+      clippedStart,
+      clippedEnd,
+      side * (METRO_TERRAIN_TUNNEL_WIDTH / 2 + 0.45),
+      0.84,
+      METRO_TERRAIN_TUNNEL_WALL_HEIGHT,
+      '#3f4a50',
+      elevatedY + 0.14,
+      { type: 'metroTerrainTunnelWall' }
+    );
+  }
+
+  if (tunnelClip.t0 > 0.001) {
+    addMetroTerrainTunnelPortal(
+      data,
+      bounds,
+      `${id}-entry-portal`,
+      clippedStart,
+      tangent,
+      normal,
+      elevatedY
+    );
+  }
+
+  if (tunnelClip.t1 < 0.999) {
+    addMetroTerrainTunnelPortal(
+      data,
+      bounds,
+      `${id}-exit-portal`,
+      clippedEnd,
+      tangent,
+      normal,
+      elevatedY
+    );
+  }
+}
+
+function addMetroTerrainTunnelPortal(data, bounds, id, point, tangent, normal, elevatedY) {
+  const halfWidth = METRO_TERRAIN_TUNNEL_WIDTH / 2 + 2.8;
+  const left = offsetPlanarPoint(point, tangent, normal, 0, -halfWidth);
+  const right = offsetPlanarPoint(point, tangent, normal, 0, halfWidth);
+
+  addTransportSegmentObstacle(
+    data,
+    bounds,
+    `${id}-header`,
+    left,
+    right,
+    1.55,
+    0.82,
+    '#6a767d',
+    elevatedY + METRO_TERRAIN_TUNNEL_WALL_HEIGHT + 0.18,
+    { type: 'metroTerrainTunnelPortal' }
+  );
+
+  addTransportSegmentObstacle(
+    data,
+    bounds,
+    `${id}-warning-band`,
+    offsetPlanarPoint(point, tangent, normal, -0.84, -halfWidth + 2.2),
+    offsetPlanarPoint(point, tangent, normal, -0.84, halfWidth - 2.2),
+    0.28,
+    0.24,
+    '#f2d486',
+    elevatedY + METRO_TERRAIN_TUNNEL_WALL_HEIGHT + 0.98,
+    { type: 'metroTerrainTunnelPortal' }
+  );
+
+  for (const side of [-1, 1]) {
+    const lateral = side * halfWidth;
+
+    addTransportSegmentObstacle(
+      data,
+      bounds,
+      `${id}-jamb-${side > 0 ? 'right' : 'left'}`,
+      offsetPlanarPoint(point, tangent, normal, -0.88, lateral),
+      offsetPlanarPoint(point, tangent, normal, 0.88, lateral),
+      1.16,
+      METRO_TERRAIN_TUNNEL_WALL_HEIGHT,
+      '#57646b',
+      elevatedY + 0.14,
+      { type: 'metroTerrainTunnelPortal' }
+    );
+  }
+}
+
+function clipLineSegmentToCircle(start, end, center, radius) {
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const lengthSq = dx * dx + dz * dz;
+  if (lengthSq <= 0.000001 || radius <= 0) return null;
+
+  const sx = start.x - center.x;
+  const sz = start.z - center.z;
+  const a = lengthSq;
+  const b = 2 * (sx * dx + sz * dz);
+  const c = sx * sx + sz * sz - radius * radius;
+  const startInside = c <= 0;
+  const endInside = (end.x - center.x) ** 2 + (end.z - center.z) ** 2 <= radius * radius;
+
+  if (startInside && endInside) {
+    return { t0: 0, t1: 1 };
+  }
+
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) return null;
+
+  const sqrtDiscriminant = Math.sqrt(discriminant);
+  const tA = (-b - sqrtDiscriminant) / (2 * a);
+  const tB = (-b + sqrtDiscriminant) / (2 * a);
+  const enter = Math.min(tA, tB);
+  const exit = Math.max(tA, tB);
+  const t0 = clamp(startInside ? 0 : enter, 0, 1);
+  const t1 = clamp(endInside ? 1 : exit, 0, 1);
+
+  if (t1 <= 0 || t0 >= 1 || t1 <= t0) return null;
+
+  return { t0, t1 };
+}
+
+function getMetroPierPlacementAtPoint(x, z, tangent, normal, bounds, pierClearanceRoads = []) {
+  const sideOffset = Math.min(METRO_TRACK_CENTER_OFFSET, METRO_GUIDEWAY_WIDTH / 2 - 2.2);
+  const edgeOffset = METRO_GUIDEWAY_WIDTH / 2 - 2.2;
+  const forwardOffsets = [0, 10, -10, 20, -20, 32, -32, 44, -44];
+  const lateralCandidates = [
     { offset: 0, width: 1.4, depth: 1.4 },
     { offset: -sideOffset, width: 1.12, depth: 1.12 },
     { offset: sideOffset, width: 1.12, depth: 1.12 },
-    { offset: -wideSideOffset, width: 1.12, depth: 1.12 },
-    { offset: wideSideOffset, width: 1.12, depth: 1.12 }
+    { offset: -edgeOffset, width: 1.12, depth: 1.12 },
+    { offset: edgeOffset, width: 1.12, depth: 1.12 }
   ];
 
-  for (const candidate of candidates) {
-    const candidateX = x + normal.x * candidate.offset;
-    const candidateZ = z + normal.z * candidate.offset;
-    if (shouldSkipMetroPierAtPoint(candidateX, candidateZ, bounds, pierClearanceRoads)) continue;
+  for (const forwardOffset of forwardOffsets) {
+    for (const candidate of lateralCandidates) {
+      const candidateX = x + tangent.x * forwardOffset + normal.x * candidate.offset;
+      const candidateZ = z + tangent.z * forwardOffset + normal.z * candidate.offset;
+      if (shouldSkipMetroPierAtPoint(candidateX, candidateZ, bounds, pierClearanceRoads)) continue;
 
-    return {
-      ...candidate,
-      x: candidateX,
-      z: candidateZ
-    };
+      return {
+        ...candidate,
+        forwardOffset,
+        x: candidateX,
+        z: candidateZ
+      };
+    }
   }
 
   return null;
@@ -4017,17 +5151,21 @@ function getMetroSupportKey(id) {
   const stationMatch = value.match(/^(.*-metro-station(?:-connector)?-pier-\d+-\d+)(?:-cap)?$/);
   if (stationMatch) return stationMatch[1];
 
-  const lineMatch = value.match(/^(.*)-pier(?:-(?:cap|side-arm))?-(\d+)$/);
-  return lineMatch ? `${lineMatch[1]}-${lineMatch[2]}` : null;
+  const linePierMatch = value.match(/^(metro-[^-]+-line-\d+)-pier-(\d+)$/);
+  if (linePierMatch) return `${linePierMatch[1]}-${linePierMatch[2]}`;
+
+  const lineCapMatch = value.match(/^(metro-[^-]+-line-\d+)-pier-cap-(\d+)$/);
+  if (lineCapMatch) return `${lineCapMatch[1]}-${lineCapMatch[2]}`;
+
+  return null;
 }
 
 function shouldSkipMetroPierAtPoint(x, z, bounds, pierClearanceRoads = []) {
   if (isPointOnAnyRoadSurface(x, z, pierClearanceRoads, METRO_PIER_ROAD_CLEARANCE)) return true;
   if (isPointInsideSurfaceTunnelAccessClearance(x, z, METRO_PIER_ROAD_CLEARANCE + 8)) return true;
   if (isPointNearTransportSurfaceAvenueCorridor(x, z, METRO_PIER_ROAD_CLEARANCE)) return true;
-  if (isPointNearChunkEdge(x, z, bounds, METRO_PIER_ROAD_CLEARANCE + 26)) return true;
-  if (isPointNearChunkRoadAxis(x, z, bounds, METRO_PIER_ROAD_CLEARANCE + 9)) return true;
-  if (isPointNearProceduralRoadGridAxis(x, z, METRO_PIER_ROAD_CLEARANCE)) return true;
+  if (isPointNearChunkEdge(x, z, bounds, METRO_PIER_CHUNK_EDGE_CLEARANCE)) return true;
+  if (!isBoxOverlappingChunk(x, z, 4, 4, bounds, 1)) return true;
 
   return false;
 }
@@ -4122,13 +5260,13 @@ function addMetroStation(data, bounds, line, station, pierClearanceRoads = []) {
   const placement = getMetroStationPlacement(line, station);
   if (!placement) return;
 
-  const { point, tangent, normal, yaw } = placement;
-  const elevatedY = line.elevatedY ?? METRO_ELEVATED_Y;
+  const { elevatedY, point, tangent, normal, yaw } = placement;
   const stationLength = METRO_STATION_LENGTH;
   const platformWidth = METRO_STATION_PLATFORM_WIDTH;
   addMetroStationClearanceCollider(data, bounds, line, station, point, tangent, normal, stationLength, platformWidth);
   addMetroStationConnectorDeck(data, bounds, line, station, placement, stationLength, platformWidth);
   addMetroStationSupportPiers(data, bounds, line, station, placement, stationLength, platformWidth, pierClearanceRoads);
+  addMetroStationVisibilityMarkers(data, bounds, line, station, placement, stationLength, platformWidth);
 
   addMetroLocalObstacle(
     data,
@@ -4143,7 +5281,7 @@ function addMetroStation(data, bounds, line, station, pierClearanceRoads = []) {
     platformWidth,
     0.52,
     stationLength,
-    METRO_STRUCTURAL_WHITE,
+    METRO_STATION_PLATFORM_COLOR,
     yaw,
     'metroStationPlatform'
   );
@@ -4160,7 +5298,7 @@ function addMetroStation(data, bounds, line, station, pierClearanceRoads = []) {
     platformWidth + 3.2,
     0.52,
     stationLength + 12,
-    METRO_STRUCTURAL_WHITE,
+    METRO_STATION_CANOPY_COLOR,
     yaw,
     'metroStationCanopy'
   );
@@ -4177,7 +5315,7 @@ function addMetroStation(data, bounds, line, station, pierClearanceRoads = []) {
     0.24,
     1.82,
     stationLength - 22,
-    METRO_DARK,
+    METRO_STATION_GLASS_COLOR,
     yaw,
     'metroStationGlass'
   );
@@ -4196,7 +5334,7 @@ function addMetroStation(data, bounds, line, station, pierClearanceRoads = []) {
       0.24,
       0.26,
       stationLength - 8,
-      METRO_STRUCTURAL_WHITE,
+      line.color ?? METRO_STATION_COLUMN_COLOR,
       yaw,
       'metroStationPlatformEdge'
     );
@@ -4217,7 +5355,7 @@ function addMetroStation(data, bounds, line, station, pierClearanceRoads = []) {
         0.52,
         3.75,
         0.52,
-        METRO_STRUCTURAL_WHITE,
+        METRO_STATION_COLUMN_COLOR,
         yaw,
         'metroStationColumn'
       );
@@ -4248,18 +5386,80 @@ function addMetroStation(data, bounds, line, station, pierClearanceRoads = []) {
     text: station.name,
     position: [point.x + normal.x * 11.8, elevatedY + 5.45, point.z + normal.z * 11.8],
     rotation: [0, yaw, 0],
-    scale: [7.4, 2.2, 0.24],
-    color: METRO_STRUCTURAL_WHITE
+    scale: [8.6, 2.55, 0.28],
+    color: line.color
   });
 }
 
+function addMetroStationVisibilityMarkers(data, bounds, line, station, placement, stationLength, platformWidth) {
+  const { elevatedY, point, tangent, normal, yaw } = placement;
+  const color = line.color ?? METRO_WARM_LIGHT;
+
+  addMetroLocalObstacle(
+    data,
+    bounds,
+    `${station.id}-metro-roof-line-band`,
+    point,
+    tangent,
+    normal,
+    0,
+    0,
+    elevatedY + 4.95,
+    platformWidth + 4.2,
+    0.16,
+    stationLength + 16,
+    color,
+    yaw,
+    'metroStationLineBand'
+  );
+
+  for (const side of [-1, 1]) {
+    addMetroLocalObstacle(
+      data,
+      bounds,
+      `${station.id}-metro-platform-line-band-${side}`,
+      point,
+      tangent,
+      normal,
+      0,
+      side * (platformWidth / 2 - 0.42),
+      elevatedY + 1.14,
+      0.62,
+      0.34,
+      stationLength + 6,
+      color,
+      yaw,
+      'metroStationLineBand'
+    );
+  }
+
+  for (const forward of [-stationLength / 2 + 16, stationLength / 2 - 16]) {
+    addMetroLocalObstacle(
+      data,
+      bounds,
+      `${station.id}-metro-beacon-${forward < 0 ? 'a' : 'b'}`,
+      point,
+      tangent,
+      normal,
+      forward,
+      platformWidth / 2 + 2.6,
+      elevatedY + 4.85,
+      1.55,
+      6.4,
+      1.55,
+      color,
+      yaw,
+      'metroStationBeacon'
+    );
+  }
+}
+
 function addMetroStationConnectorDeck(data, bounds, line, station, placement, stationLength, platformWidth) {
-  const { point, structureForwardOffset, tangent, trackPoint, normal } = placement;
+  const { elevatedY, point, structureForwardOffset, tangent, trackPoint, normal } = placement;
   const offset = structureForwardOffset ?? 0;
   const sign = Math.sign(offset);
   if (!sign || Math.abs(offset) <= stationLength / 2 - 10) return;
 
-  const elevatedY = line.elevatedY ?? METRO_ELEVATED_Y;
   const connectorStart = {
     x: point.x - tangent.x * sign * (stationLength / 2 - 6),
     z: point.z - tangent.z * sign * (stationLength / 2 - 6)
@@ -4279,7 +5479,7 @@ function addMetroStationConnectorDeck(data, bounds, line, station, placement, st
     connectorEnd,
     platformWidth + 3.2,
     0.46,
-    METRO_STRUCTURAL_WHITE,
+    METRO_STATION_DECK_COLOR,
     elevatedY + 0.34,
     { type: 'metroStationConnectorDeck' }
   );
@@ -4294,7 +5494,7 @@ function addMetroStationConnectorDeck(data, bounds, line, station, placement, st
       side * (platformWidth / 2 + 1.2),
       0.38,
       0.62,
-      METRO_STRUCTURAL_WHITE,
+      METRO_STATION_COLUMN_COLOR,
       elevatedY + 0.76,
       { type: 'metroStationConnectorParapet' }
     );
@@ -4318,18 +5518,14 @@ function addMetroStationConnectorDeck(data, bounds, line, station, placement, st
 }
 
 function addMetroStationSupportPiers(data, bounds, line, station, placement, stationLength, platformWidth, pierClearanceRoads = []) {
-  const { point, structureForwardOffset, tangent, trackPoint, normal, yaw } = placement;
-  const elevatedY = line.elevatedY ?? METRO_ELEVATED_Y;
-  const supportRows = [
-    -stationLength / 2 + 22,
-    -stationLength / 6,
-    stationLength / 6,
-    stationLength / 2 - 22
-  ];
+  const { elevatedY, point, structureForwardOffset, tangent, trackPoint, normal, yaw } = placement;
+  const supportRows = getRegularInteriorDistances(stationLength, METRO_STATION_SUPPORT_SPACING, 22)
+    .map((distance) => distance - stationLength / 2);
   const lateralRows = [
     -(platformWidth / 2 - 4.6),
     platformWidth / 2 - 4.6
   ];
+  const maxLateral = platformWidth / 2 - 2.2;
 
   for (const [forwardIndex, forward] of supportRows.entries()) {
     for (const [sideIndex, lateral] of lateralRows.entries()) {
@@ -4344,7 +5540,8 @@ function addMetroStationSupportPiers(data, bounds, line, station, placement, sta
         lateral,
         elevatedY,
         yaw,
-        pierClearanceRoads
+        pierClearanceRoads,
+        maxLateral
       );
     }
   }
@@ -4371,13 +5568,14 @@ function addMetroStationSupportPiers(data, bounds, line, station, placement, sta
       lateral,
       elevatedY,
       yaw,
-      pierClearanceRoads
+      pierClearanceRoads,
+      maxLateral
     );
   }
 }
 
-function addMetroStationSupportPier(data, bounds, id, origin, tangent, normal, forward, lateral, elevatedY, yaw, pierClearanceRoads) {
-  const placement = getMetroStationSupportPierPlacement(origin, tangent, normal, forward, lateral, bounds, pierClearanceRoads);
+function addMetroStationSupportPier(data, bounds, id, origin, tangent, normal, forward, lateral, elevatedY, yaw, pierClearanceRoads, maxLateral = null) {
+  const placement = getMetroStationSupportPierPlacement(origin, tangent, normal, forward, lateral, bounds, pierClearanceRoads, maxLateral);
   if (!placement) return;
 
   addMetroObstacle(
@@ -4390,7 +5588,7 @@ function addMetroStationSupportPier(data, bounds, id, origin, tangent, normal, f
     1.36,
     elevatedY - GROUND_DRIVE_Y + 0.2,
     1.36,
-    METRO_STRUCTURAL_WHITE,
+    METRO_STATION_COLUMN_COLOR,
     yaw,
     'metroPier'
   );
@@ -4404,16 +5602,26 @@ function addMetroStationSupportPier(data, bounds, id, origin, tangent, normal, f
     4.8,
     0.44,
     4.8,
-    METRO_SOFT_WHITE,
+    METRO_STATION_DECK_COLOR,
     yaw,
     'metroPierCap'
   );
 }
 
-function getMetroStationSupportPierPlacement(origin, tangent, normal, forward, lateral, bounds, pierClearanceRoads = []) {
+function getMetroStationSupportPierPlacement(origin, tangent, normal, forward, lateral, bounds, pierClearanceRoads = [], maxLateral = null) {
   const side = Math.sign(lateral) || 1;
   const forwardOffsets = [0, 8, -8, 16, -16];
-  const lateralOffsets = [lateral, lateral + side * 7.5, lateral - side * 5.5, side * 2.5];
+  const lateralLimit = Number.isFinite(maxLateral) ? Math.abs(maxLateral) : Infinity;
+  const lateralOffsets = [
+    lateral,
+    lateral - side * 2.8,
+    side * Math.min(2.6, lateralLimit),
+    0,
+    lateral + side * 2.4
+  ].filter((offset, index, offsets) => (
+    Math.abs(offset) <= lateralLimit &&
+    offsets.findIndex((item) => Math.abs(item - offset) < 0.05) === index
+  ));
 
   for (const forwardOffset of forwardOffsets) {
     for (const lateralOffset of lateralOffsets) {
@@ -4435,48 +5643,85 @@ function addMetroLineTrains(data, bounds) {
   for (const line of METRO_LINES) {
     const serviceOffsets = line.serviceOffsets ?? METRO_SERVICE_OFFSETS;
 
-    for (const direction of [1, -1]) {
-      // Reversing the path flips its normal, so this local offset maps each direction to a different physical track.
-      const trackLateral = -METRO_TRACK_CENTER_OFFSET;
-
-      for (let index = 0; index < serviceOffsets.length; index += 1) {
-        const t = direction > 0
-          ? serviceOffsets[index]
-          : positiveModulo(serviceOffsets[index] + 0.12, 1);
-
-        addMetroTrainSet(
-          data,
-          bounds,
-          `${line.id}-${direction > 0 ? 'forward' : 'reverse'}-${index}`,
-          line,
-          t,
-          trackLateral,
-          direction
-        );
-      }
+    for (let index = 0; index < serviceOffsets.length; index += 1) {
+      addMetroTrainSet(
+        data,
+        bounds,
+        `${line.id}-forward-${index}`,
+        line,
+        serviceOffsets[index]
+      );
+      addMetroTrainSet(
+        data,
+        bounds,
+        `${line.id}-reverse-${index}`,
+        line,
+        positiveModulo(serviceOffsets[index] + 0.5, 1)
+      );
     }
   }
 }
 
-function addMetroTrainSet(data, bounds, trainId, line, centerT, trackLateral, travelDirection = 1) {
+function getMetroTerminalStopProgressesForPath(path, trainHalfLength = 0) {
+  return getMetroTerminalServiceStopsForPath(path, trainHalfLength).stops;
+}
+
+function getMetroTerminalServiceStopsForPath(path, trainHalfLength = 0) {
+  const points = path?.points ?? [];
+  const routeLength = getPlanarPathLength(points);
+  if (routeLength <= 0.001) return { reverseServiceRanges: [], stops: [] };
+
+  const crossoverDistances = path?.metroTerminalCrossoverEndDistances;
+  if (
+    Number.isFinite(crossoverDistances?.end) &&
+    Number.isFinite(crossoverDistances?.start)
+  ) {
+    const centerClearance = Math.max(0, trainHalfLength + METRO_TERMINAL_STOP_FRONT_CLEARANCE);
+    const endStop = Number(positiveModulo((crossoverDistances.end + centerClearance) / routeLength, 1).toFixed(5));
+    const startStop = Number(positiveModulo((crossoverDistances.start + centerClearance) / routeLength, 1).toFixed(5));
+    const stops = [...new Set([startStop, endStop])].sort((a, b) => a - b);
+
+    return {
+      reverseServiceRanges: Number.isFinite(endStop) && Number.isFinite(startStop)
+        ? [{ start: endStop, end: startStop }]
+        : [],
+      stops
+    };
+  }
+
+  const markerDistances = path?.metroTerminalMarkerDistances ?? [];
+  if (markerDistances.length === 0) return { reverseServiceRanges: [], stops: [] };
+
+  const centerBackoff = Math.max(0, trainHalfLength - METRO_TERMINAL_STOP_FRONT_CLEARANCE);
+  const stops = markerDistances
+    .filter(Number.isFinite)
+    .map((distance) => Number(positiveModulo((distance - centerBackoff) / routeLength, 1).toFixed(5)));
+
+  return { reverseServiceRanges: [], stops };
+}
+
+function addMetroTrainSet(data, bounds, trainId, line, centerT) {
   const carLength = METRO_TRAIN_CAR_LENGTH;
   const carGap = METRO_TRAIN_CAR_GAP;
   const carWidth = 3.25;
   const elevatedY = line.elevatedY ?? METRO_ELEVATED_Y;
   const trainBaseY = elevatedY + 0.86;
-  const routeLength = getMetroLineLength(line);
+  const path = createMetroLoopTrafficPath(line, trainBaseY);
+  const routeLength = getPlanarPathLength(path.points);
   if (routeLength <= 1) return;
 
-  const path = createMetroTrafficPath(line, trackLateral, travelDirection, trainBaseY);
   if (!doesMetroPathTouchChunk(path, bounds)) return;
 
   const trainCenterProgress = positiveModulo(centerT, 1);
   const carProgressGap = (carLength + carGap) / routeLength;
   const trainHalfLength = ((METRO_TRAIN_CAR_COUNT - 1) * (carLength + carGap) + carLength) / 2;
-  const terminalMargin = Math.min(0.045, (trainHalfLength + 8) / routeLength);
-  const metroStops = getMetroStopProgressesForPath(line, path);
+  const renderBounds = createTrafficPathRenderBounds(path, trainHalfLength + 120);
+  const terminalMargin = 0;
+  const metroTerminalServiceStops = getMetroTerminalServiceStopsForPath(path, trainHalfLength);
+  const metroTerminalStops = metroTerminalServiceStops.stops;
+  const metroStops = getMetroStopProgressesForPath(line, path, metroTerminalStops);
   const serviceOffsetCount = Math.max(1, (line.serviceOffsets ?? METRO_SERVICE_OFFSETS).length);
-  const cycleSeconds = METRO_SERVICE_HEADWAY_SECONDS * serviceOffsetCount / Math.max(0.1, line.speedMultiplier ?? 1);
+  const cycleSeconds = METRO_SERVICE_HEADWAY_SECONDS * serviceOffsetCount * 2 / Math.max(0.1, line.speedMultiplier ?? 1);
   const speed = 1 / cycleSeconds;
 
   for (let carIndex = 0; carIndex < METRO_TRAIN_CAR_COUNT; carIndex += 1) {
@@ -4506,18 +5751,18 @@ function addMetroTrainSet(data, bounds, trainId, line, centerT, trackLateral, tr
         loopMode: 'loop',
         metroCycleSeconds: cycleSeconds,
         metroDwellSeconds: METRO_STATION_DWELL_SECONDS,
+        metroLoop: true,
         metroOneWay: true,
+        metroReversibleEnds: true,
+        metroReverseServiceRanges: metroTerminalServiceStops.reverseServiceRanges,
         metroTerminalDwellSeconds: METRO_TERMINAL_DWELL_SECONDS,
         metroTerminalMargin: terminalMargin,
+        metroTerminalStops,
         metroStops,
         path,
-        pathKey: `${line.id}-${travelDirection > 0 ? 'forward' : 'reverse'}-${trackLateral}`,
-        renderBounds: {
-          minX: bounds.minX - 90,
-          maxX: bounds.maxX + 90,
-          minZ: bounds.minZ - 90,
-          maxZ: bounds.maxZ + 90
-        },
+        pathKey: `${line.id}-metro-loop`,
+        preservePathYaw: true,
+        renderBounds,
         roadKind: 'metro-line',
         roadType: 'metro',
         trainCarOffset,
@@ -4531,8 +5776,7 @@ function addMetroTrainSet(data, bounds, trainId, line, centerT, trackLateral, tr
 }
 
 function addMetroStationGroundAccess(data, bounds, line, station, placement, stationLength) {
-  const { point, tangent, normal, yaw } = placement;
-  const elevatedY = line.elevatedY ?? METRO_ELEVATED_Y;
+  const { elevatedY, point, tangent, normal, yaw } = placement;
   const groundForward = -stationLength / 2 - 34;
   const platformForward = -stationLength / 2 + 6;
   const accessLateral = -12.8;
@@ -4555,7 +5799,7 @@ function addMetroStationGroundAccess(data, bounds, line, station, placement, sta
     28,
     0.06,
     22,
-    METRO_SOFT_WHITE,
+    METRO_STATION_DECK_COLOR,
     yaw,
     'metroStationGroundPlaza'
   );
@@ -4569,7 +5813,7 @@ function addMetroStationGroundAccess(data, bounds, line, station, placement, sta
     13,
     0.34,
     8,
-    METRO_STRUCTURAL_WHITE,
+    line.color ?? METRO_STATION_CANOPY_COLOR,
     yaw,
     'metroStationGroundCanopy'
   );
@@ -4583,7 +5827,7 @@ function addMetroStationGroundAccess(data, bounds, line, station, placement, sta
     3.4,
     elevatedY - GROUND_DRIVE_Y + 4.1,
     3.4,
-    METRO_STRUCTURAL_WHITE,
+    METRO_STATION_ACCESS_COLOR,
     yaw,
     'metroStationElevatorCore'
   );
@@ -4597,7 +5841,7 @@ function addMetroStationGroundAccess(data, bounds, line, station, placement, sta
     elevatedY + 0.92,
     5.4,
     0.26,
-    METRO_DARK,
+    METRO_STATION_ACCESS_COLOR,
     'metroStationStairRamp'
   );
 
@@ -4617,7 +5861,7 @@ function addMetroStationGroundAccess(data, bounds, line, station, placement, sta
       5.7,
       0.18,
       1.7,
-      METRO_DARK_TRIM,
+      METRO_STATION_DECK_COLOR,
       yaw,
       'metroStationStairStep'
     );
@@ -4643,7 +5887,7 @@ function addMetroStationGroundAccess(data, bounds, line, station, placement, sta
       elevatedY + 1.55,
       0.18,
       0.18,
-      METRO_STRUCTURAL_WHITE,
+      METRO_STATION_COLUMN_COLOR,
       'metroStationHandrail'
     );
   }
@@ -4666,10 +5910,16 @@ function addMetroSlopedObstacle(data, bounds, id, start, end, startY, endY, widt
   ));
 }
 
+function getMetroStationPlacementById(lineId, stationId) {
+  const line = METRO_LINES.find((item) => item.id === lineId);
+  const station = line?.stations?.find((item) => item.id === stationId);
+  if (!line || !station) return null;
+
+  return getMetroStationPlacement(line, station);
+}
+
 function getMetroStationPlacement(line, station) {
-  const pose = station.point
-    ? getMetroLinePoseNearPoint(line, station.point)
-    : getMetroLinePoseAtT(line, station.t ?? 0.5);
+  const pose = getMetroStationStraightPose(line, station);
   if (!pose) return null;
 
   const normal = { x: -pose.tangent.z, z: pose.tangent.x };
@@ -4681,6 +5931,7 @@ function getMetroStationPlacement(line, station) {
   };
 
   return {
+    elevatedY: getMetroPointY(pose.point, line.elevatedY ?? METRO_ELEVATED_Y),
     point,
     structureForwardOffset: forwardOffset,
     tangent: pose.tangent,
@@ -5791,6 +7042,72 @@ function isFastRoadSurfaceConnectorRoad(road) {
     road?.kind === 'station-highway-connector';
 }
 
+function applyFastRoadTunnelOpeningVisualGaps(roads) {
+  const openingRoads = roads.filter(isFastRoadTunnelOpeningRoad);
+  if (openingRoads.length === 0) return;
+
+  for (const road of roads) {
+    if (!shouldApplyFastRoadTunnelOpeningVisualGap(road)) continue;
+
+    const layout = getRoadVisualGapLayout(road);
+    if (!layout) continue;
+
+    const gaps = [];
+
+    for (const openingRoad of openingRoads) {
+      const gap = getFastRoadTunnelOpeningGap(layout, openingRoad, road);
+      if (gap) gaps.push(gap);
+    }
+
+    if (gaps.length === 0) continue;
+
+    const existingGaps = Array.isArray(road.visualGaps) ? road.visualGaps : [];
+    const merged = mergeBlockedRanges([...existingGaps, ...gaps], layout.length);
+    if (merged.length === 0) continue;
+
+    road.visualGaps = merged;
+    road.visualGapReason = road.visualGapReason ?? 'fast-road-tunnel-opening';
+    road.renderSlices = createRoadRenderSlicesAroundGaps(road, layout, merged);
+    road.laneMarkSlices = createRoadLogicalSlicesAroundGaps(road, layout, merged, 'lane-slice');
+    road.detailSlices = road.laneMarkSlices;
+    road.driveSurfaceSlices = road.laneMarkSlices
+      .map((slice) => slice.surface)
+      .filter(Boolean);
+  }
+}
+
+function isFastRoadTunnelOpeningRoad(road) {
+  if (!road || (road.kind !== 'transport-highway-ramp' && road.kind !== 'expressway-ramp')) return false;
+
+  const range = getRoadYRange(road);
+  const coveredTunnelY = GROUND_DRIVE_Y - FAST_ROAD_TUNNEL_BOX_CLEARANCE - 0.64;
+  if (range.maxY < coveredTunnelY) return false;
+  if (range.minY > GROUND_DRIVE_Y + 0.8) return false;
+
+  return Boolean(getRoadCenterline(road));
+}
+
+function shouldApplyFastRoadTunnelOpeningVisualGap(road) {
+  if (!road || isFastRoadTunnelOpeningRoad(road) || isSurfaceTunnelAccessRoad(road)) return false;
+  if (!road.marked && road.kind !== 'road-edge-seam') return false;
+  if (road.roadType === ROAD_TYPES.parking || road.roadType === ROAD_TYPES.ramp) return false;
+
+  const range = getRoadYRange(road);
+  if (range.minY < GROUND_DRIVE_Y - 0.6 || range.maxY > GROUND_DRIVE_Y + 0.9) return false;
+
+  if (typeof road.kind === 'string' && (
+    road.kind === 'expressway-tunnel' ||
+    road.kind === 'transport-highway' ||
+    road.kind.startsWith('transport-underpass') ||
+    road.kind.startsWith('transport-overpass') ||
+    road.kind.startsWith('surface-avenue-tunnel')
+  )) {
+    return false;
+  }
+
+  return Boolean(getRoadCenterline(road));
+}
+
 function applySurfaceTunnelAccessVisualGaps(roads, roadColliders = []) {
   const accessRoads = roads.filter(isSurfaceTunnelAccessRoad);
   if (accessRoads.length === 0) return;
@@ -6031,10 +7348,135 @@ function getSurfaceTunnelAccessRoadGap(layout, accessRoad) {
   };
 }
 
+function getFastRoadTunnelOpeningGap(layout, openingRoad, surfaceRoad) {
+  const opening = getFastRoadTunnelOpeningLine(openingRoad);
+  if (!opening) return null;
+
+  const approach = getClosestSegmentApproach(
+    layout.line.start,
+    layout.line.end,
+    opening.line.start,
+    opening.line.end
+  );
+  const openingWidth = opening.width;
+  const clearance = layout.crossWidth / 2 + openingWidth / 2 + 24;
+  if (!approach || approach.distanceSq > clearance * clearance) return null;
+  if (isAlignedFastRoadSurfaceConnector(surfaceRoad, layout, opening, approach)) return null;
+
+  const alignment = Math.abs(layout.tangent.x * opening.tangent.x + layout.tangent.z * opening.tangent.z);
+  if (alignment > 0.82) {
+    const projectedStart = getProjectedDistanceOnRoadLayout(opening.line.start, layout);
+    const projectedEnd = getProjectedDistanceOnRoadLayout(opening.line.end, layout);
+    const lateralLimit = clearance + Math.max(10, openingWidth * 0.35);
+
+    if (
+      projectedStart.lateralSq <= lateralLimit * lateralLimit ||
+      projectedEnd.lateralSq <= lateralLimit * lateralLimit ||
+      approach.distanceSq <= lateralLimit * lateralLimit
+    ) {
+      const startDistance = clamp(Math.min(projectedStart.distance, projectedEnd.distance), 0, layout.length);
+      const endDistance = clamp(Math.max(projectedStart.distance, projectedEnd.distance), 0, layout.length);
+      const margin = Math.max(48, layout.crossWidth * 0.78 + openingWidth * 0.72 + 18);
+
+      return {
+        start: startDistance - margin,
+        end: endDistance + margin
+      };
+    }
+  }
+
+  const centerDistance = clamp(approach.t, 0, 1) * layout.length;
+  const gapHalfLength = Math.max(64, openingWidth + layout.crossWidth * 1.05 + 42);
+
+  return {
+    start: centerDistance - gapHalfLength,
+    end: centerDistance + gapHalfLength
+  };
+}
+
+function getFastRoadTunnelOpeningLine(openingRoad) {
+  const line = getRoadCenterline(openingRoad);
+  if (!line) return null;
+
+  const length = getPlanarLineLength(line);
+  if (length <= 0.5) return null;
+
+  const tangent = normalizeVector({
+    x: line.end.x - line.start.x,
+    z: line.end.z - line.start.z
+  });
+
+  return {
+    line,
+    length,
+    tangent,
+    width: getRoadCrossWidth(openingRoad) + FAST_ROAD_RAMP_CUTOUT_EXTRA_WIDTH + 5.5
+  };
+}
+
+function getProjectedDistanceOnRoadLayout(point, layout) {
+  const dx = point.x - layout.line.start.x;
+  const dz = point.z - layout.line.start.z;
+  const distance = dx * layout.tangent.x + dz * layout.tangent.z;
+  const distanceSq = dx * dx + dz * dz;
+  const lateralSq = Math.max(0, distanceSq - distance * distance);
+
+  return { distance, lateralSq };
+}
+
+function isAlignedFastRoadSurfaceConnector(road, layout, opening, approach) {
+  if (!isFastRoadSurfaceConnectorRoad(road)) return false;
+
+  const alignment = Math.abs(layout.tangent.x * opening.tangent.x + layout.tangent.z * opening.tangent.z);
+  if (alignment < 0.72) return false;
+
+  const connectorEndpoint = approach.t <= 0.14 || approach.t >= 0.86;
+  const openingEndpoint = approach.u <= 0.14 || approach.u >= 0.86;
+
+  return connectorEndpoint && openingEndpoint;
+}
+
 function createRoadRenderSlicesAroundGaps(road, layout, gaps) {
   const clearRanges = getClearRangesAroundGaps(layout.length, gaps, 3.2);
 
   return clearRanges.map((range, index) => createRoadRenderSlice(road, layout, range, index)).filter(Boolean);
+}
+
+function createRoadLogicalSlicesAroundGaps(road, layout, gaps, suffix) {
+  const width = getRoadCrossWidth(road);
+  const y = road.position?.[1] ?? GROUND_DRIVE_Y;
+  const clearRanges = getClearRangesAroundGaps(layout.length, gaps, 6);
+
+  return clearRanges
+    .map((range, index) => {
+      const start = getPointAlongRoadLayout(layout, range.start);
+      const end = getPointAlongRoadLayout(layout, range.end);
+
+      return createSegmentRoad(
+        `${road.id}-${suffix}-${index}`,
+        road.kind,
+        road.roadType,
+        start,
+        end,
+        width,
+        y,
+        {
+          marked: road.marked,
+          side: road.side,
+          trafficDisabled: road.trafficDisabled
+        }
+      );
+    })
+    .filter(Boolean);
+}
+
+function getPointAlongRoadLayout(layout, distance) {
+  const clampedDistance = clamp(distance, 0, layout.length);
+
+  return {
+    x: layout.line.start.x + layout.tangent.x * clampedDistance,
+    z: layout.line.start.z + layout.tangent.z * clampedDistance
+  };
 }
 
 function getClearRangesAroundGaps(length, gaps, minLength = 3.2) {
@@ -6385,7 +7827,7 @@ function addUndergroundTransportHighway(data, bounds, chunkX, chunkZ, groundRoad
     bounds
   );
 
-  const startRamp = addTransportSlopedRoad(
+  addTransportSmoothSlopedRoad(
     data,
     `${baseId}-entry-ramp`,
     'transport-highway-ramp',
@@ -6401,7 +7843,8 @@ function addUndergroundTransportHighway(data, bounds, chunkX, chunkZ, groundRoad
       visualStartY: GROUND_DRIVE_Y,
       visualEndY: tunnelY
     },
-    bounds
+    bounds,
+    TRANSPORT_SURFACE_TUNNEL_ACCESS_SMOOTH_SEGMENTS
   );
   const entryMergeRoad = addTransportSegmentRoad(
     data,
@@ -6454,7 +7897,7 @@ function addUndergroundTransportHighway(data, bounds, chunkX, chunkZ, groundRoad
     chunkX,
     chunkZ
   );
-  const endRamp = addTransportSlopedRoad(
+  addTransportSmoothSlopedRoad(
     data,
     `${baseId}-exit-ramp`,
     'transport-highway-ramp',
@@ -6470,7 +7913,8 @@ function addUndergroundTransportHighway(data, bounds, chunkX, chunkZ, groundRoad
       visualStartY: tunnelY,
       visualEndY: GROUND_DRIVE_Y
     },
-    bounds
+    bounds,
+    TRANSPORT_SURFACE_TUNNEL_ACCESS_SMOOTH_SEGMENTS
   );
   addTransportSlopedRoad(
     data,
@@ -6794,7 +8238,12 @@ function addTransportOverpassForRoad(data, bounds, chunkX, chunkZ, road, line, c
     : null;
 
   if (deck) {
-    addTransportOverpassSupports(data, deck, bounds, [road, approachStart, approachEnd].filter(Boolean));
+    addTransportOverpassSupports(
+      data,
+      deck,
+      bounds,
+      data.roads.filter((item) => item !== deck && !String(item?.kind ?? '').startsWith('transport-overpass'))
+    );
   }
 
   addTransportBridgeJointRoads(
@@ -6842,26 +8291,23 @@ function addTransportOverpassSupports(data, road, bounds, clearanceRoads = []) {
     z: line.end.z - line.start.z
   });
   const normal = { x: -tangent.z, z: tangent.x };
-  const supportCount = Math.max(1, Math.floor(length / 96));
+  const supportDistances = getRegularInteriorDistances(length, TRANSPORT_OVERPASS_SUPPORT_SPACING, 22);
   const bridgeWidth = road.surface?.width ?? road.visualScale?.[1] ?? getRoadCrossWidth(road);
-  const lateralOffset = bridgeWidth / 2 + 3.4;
+  const lateralOffset = Math.max(0, Math.min(bridgeWidth * 0.28, bridgeWidth / 2 - 2.2));
+  const lateralRows = lateralOffset > 1.2 ? [-lateralOffset, lateralOffset] : [0];
   const height = Math.max(2.4, getRoadVisualY(road) - 0.12);
 
-  for (let index = 0; index < supportCount; index += 1) {
-    const distance = supportCount === 1
-      ? length / 2
-      : lerp(24, length - 24, index / Math.max(1, supportCount - 1));
-
-    for (const side of [-1, 1]) {
-      const x = line.start.x + tangent.x * distance + normal.x * side * lateralOffset;
-      const z = line.start.z + tangent.z * distance + normal.z * side * lateralOffset;
+  for (const [index, distance] of supportDistances.entries()) {
+    for (const lateral of lateralRows) {
+      const x = line.start.x + tangent.x * distance + normal.x * lateral;
+      const z = line.start.z + tangent.z * distance + normal.z * lateral;
 
       if (!isInsideChunk(x, z, bounds)) continue;
       if (isBoxInsideSpawnClearZone(x, z, 3, 3)) continue;
       if (isPointOnAnyRoadSurface(x, z, clearanceRoads, 3.2)) continue;
 
       data.trafficObstacles.push(createTrafficObstacle(
-        `${road.id}-bridge-support-${index}-${side}`,
+        `${road.id}-bridge-support-${index}-${Math.round(lateral * 10)}`,
         x,
         z,
         0,
@@ -7258,7 +8704,7 @@ function addTransportUnderpassOpenCutFloors(data, baseId, rampStart, tunnelStart
     )
   ];
 
-  if (options.includeGroundDeck !== false) {
+  if (options.includeGroundDeck === true) {
     obstacles.push(createTrafficObstacle(
       `${baseId}-overhead-deck-underside`,
       (tunnelStart.x + tunnelEnd.x) / 2,
@@ -7460,7 +8906,7 @@ function getTransportHighwayAccessWallGaps(tunnelStart, tunnelEnd, tunnelWidth) 
     z: tunnelEnd.z - tunnelStart.z
   });
   const normal = { x: -tangent.z, z: tangent.x };
-  const lateralLimit = tunnelWidth / 2 + TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH + 16;
+  const lateralLimit = tunnelWidth / 2 + TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH + 72;
   const halfOpeningLength = getSurfaceTunnelAccessWallHalfOpeningLength();
 
   for (const access of getTransportSurfaceTunnelAccessLayouts()) {
@@ -7480,10 +8926,9 @@ function getTransportHighwayAccessWallGaps(tunnelStart, tunnelEnd, tunnelWidth) 
     const distanceSq = dx * dx + dz * dz;
     if (distanceSq > lateralLimit * lateralLimit) continue;
 
-    const side = access.side >= 0 ? 1 : -1;
     const lateral = dx * normal.x + dz * normal.z;
+    const side = Math.sign(lateral) || getSurfaceTunnelAccessLateralSide(access, tunnelStart, tunnelEnd);
     if (Math.abs(lateral) < tunnelWidth / 2 - TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH * 0.8) continue;
-    if (Math.sign(lateral || side) !== side) continue;
 
     const centerDistance = projection.t * tunnelLength;
     rangesBySide[side].push({
@@ -7500,9 +8945,34 @@ function getTransportHighwayAccessWallGaps(tunnelStart, tunnelEnd, tunnelWidth) 
 
 function getSurfaceTunnelAccessWallHalfOpeningLength() {
   return Math.max(
-    TRANSPORT_SURFACE_TUNNEL_ACCESS_PORTAL_OPENING_LENGTH * 0.86,
-    TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH * 4.7
+    TRANSPORT_SURFACE_TUNNEL_ACCESS_PORTAL_OPENING_LENGTH * 1.18,
+    TRANSPORT_SURFACE_TUNNEL_ACCESS_WIDTH * 6.5
   );
+}
+
+function getSurfaceTunnelAccessLateralSide(access, tunnelStart, tunnelEnd) {
+  const tunnelTangent = normalizeVector({
+    x: tunnelEnd.x - tunnelStart.x,
+    z: tunnelEnd.z - tunnelStart.z
+  });
+  const tunnelNormal = { x: -tunnelTangent.z, z: tunnelTangent.x };
+  const center = midpoint(access.rampEnd, access.mergePoint);
+  const projection = projectPointToSegment(
+    center.x,
+    center.z,
+    tunnelStart.x,
+    tunnelStart.z,
+    tunnelEnd.x,
+    tunnelEnd.z
+  );
+
+  if (projection) {
+    const lateral = (center.x - projection.x) * tunnelNormal.x +
+      (center.z - projection.z) * tunnelNormal.z;
+    if (Math.abs(lateral) > 0.001) return lateral >= 0 ? 1 : -1;
+  }
+
+  return access.side >= 0 ? 1 : -1;
 }
 
 function getSurfaceTunnelAccessWallOpeningPoint(access, tunnelStart, tunnelEnd, tunnelWidth) {
@@ -7533,7 +9003,8 @@ function getSurfaceTunnelAccessWallOpeningPoint(access, tunnelStart, tunnelEnd, 
     (access.rampEnd.z - startProjection.z) * tunnelNormal.z;
   const endLateral = (access.mergePoint.x - endProjection.x) * tunnelNormal.x +
     (access.mergePoint.z - endProjection.z) * tunnelNormal.z;
-  const targetLateral = access.side * (tunnelWidth / 2 + TUNNEL_INTERIOR_WALL_THICKNESS * 0.5);
+  const side = getSurfaceTunnelAccessLateralSide(access, tunnelStart, tunnelEnd);
+  const targetLateral = side * (tunnelWidth / 2 + TUNNEL_INTERIOR_WALL_THICKNESS * 0.5);
   const denominator = endLateral - startLateral;
   const t = Math.abs(denominator) > 0.0001
     ? clamp((targetLateral - startLateral) / denominator, 0, 1)
@@ -8082,6 +9553,48 @@ function addTransportSlopedRoad(data, id, kind, roadType, start, end, width, sta
   return road;
 }
 
+function addTransportSmoothSlopedRoad(data, id, kind, roadType, start, end, width, startY, endY, options, bounds, segmentCount = 6) {
+  const length = Math.hypot(end.x - start.x, end.z - start.z);
+  const heightDelta = endY - startY;
+
+  if (length <= 0.1 || Math.abs(heightDelta) <= 0.08 || segmentCount <= 1) {
+    const road = addTransportSlopedRoad(data, id, kind, roadType, start, end, width, startY, endY, options, bounds);
+    return road ? [road] : [];
+  }
+
+  const roads = [];
+  const visualStartBase = options?.visualStartY ?? startY;
+  const visualEndBase = options?.visualEndY ?? endY;
+
+  for (let index = 0; index < segmentCount; index += 1) {
+    const t0 = index / segmentCount;
+    const t1 = (index + 1) / segmentCount;
+    const easedT0 = smootherStep(t0);
+    const easedT1 = smootherStep(t1);
+    const road = addTransportSlopedRoad(
+      data,
+      `${id}-smooth-${index}`,
+      kind,
+      roadType,
+      lerpPoint(start, end, t0),
+      lerpPoint(start, end, t1),
+      width,
+      lerp(startY, endY, easedT0),
+      lerp(startY, endY, easedT1),
+      {
+        ...options,
+        visualStartY: lerp(visualStartBase, visualEndBase, easedT0),
+        visualEndY: lerp(visualStartBase, visualEndBase, easedT1)
+      },
+      bounds
+    );
+
+    if (road) roads.push(road);
+  }
+
+  return roads;
+}
+
 function addTransportFullSegmentRoad(data, id, kind, roadType, start, end, width, y, options = {}) {
   const road = createSegmentRoad(
     id,
@@ -8467,42 +9980,40 @@ function addTransportTollObstacle(data, bounds, toll, tangent, normal, id, forwa
   );
 }
 
+const BAOTOU_AIRPORT_RUNWAY = {
+  id: '13-31',
+  start: { x: -7350, z: 4750 },
+  end: { x: -5550, z: 6550 },
+  width: 68
+};
+const BAOTOU_AIRPORT_CENTER = {
+  x: (BAOTOU_AIRPORT_RUNWAY.start.x + BAOTOU_AIRPORT_RUNWAY.end.x) / 2,
+  z: (BAOTOU_AIRPORT_RUNWAY.start.z + BAOTOU_AIRPORT_RUNWAY.end.z) / 2
+};
+const AIRPORT_TERMINAL_SIDE = -1;
+const AIRPORT_FENCE_HEIGHT = 3.0;
+const AIRPORT_PAVEMENT_BASE_Y = 0.044;
+const AIRPORT_MARKING_BASE_Y = 0.108;
+const AIRPORT_GATE_STANDS = [
+  { id: 'a1', label: 'Gate A1', forward: -520, livery: '#d9d3ff' },
+  { id: 'a2', label: 'Gate A2', forward: -240, livery: '#75b7d8' },
+  { id: 'a3', label: 'Gate A3', forward: 80, livery: '#f2d486' },
+  { id: 'a4', label: 'Gate A4', forward: 400, livery: '#e7edf1' }
+];
+const AIRPORT_TAXIWAY_CONNECTORS = [-930, -420, 140, 820];
+
 function addAirportHub(data, bounds, chunkX, chunkZ) {
   const hub = TRANSPORT_HUBS.airport;
   if (!doBoundsOverlap(bounds, hub.bounds)) return;
 
-  addTransportRectRoad(data, 'airport-runway-09-27', 'airport-runway', ROAD_TYPES.highway, -6470, 6120, 1900, 62, {
-    axis: 'x',
-    side: 'runway',
-    marked: false
-  }, bounds, chunkX, chunkZ);
-  addTransportRectRoad(data, 'airport-taxiway-main', 'airport-taxiway', ROAD_TYPES.groundRoad, -6400, 5960, 1550, 22, {
-    axis: 'x',
-    side: 'taxiway',
-    marked: false
-  }, bounds, chunkX, chunkZ);
-  const apron = addTransportRectRoad(data, 'airport-apron', 'airport-apron', ROAD_TYPES.parking, -5830, 5530, 610, 270, {
-    axis: 'parking',
-    side: 'airport-apron',
-    marked: false
-  }, bounds, chunkX, chunkZ);
-  const parking = addTransportRectRoad(data, 'airport-terminal-parking', 'airport-parking', ROAD_TYPES.parking, -5460, 5140, 230, 132, {
-    axis: 'parking',
-    side: 'airport-parking',
-    marked: false
-  }, bounds, chunkX, chunkZ);
+  addBaotouAirportPavements(data, bounds);
+  addBaotouAirportLandsideRoads(data, bounds, chunkX, chunkZ, hub);
 
-  if (apron) data.parkingMarks.push(...createParkingMarks(apron));
-  if (parking) data.parkingMarks.push(...createParkingMarks(parking));
-
-  addTransportSegmentRoad(data, 'airport-terminal-loop-east', 'airport-loop', ROAD_TYPES.groundRoad, hub.terminalGate, { x: -5480, z: 5280 }, 12, GROUND_DRIVE_Y, {
-    side: 'airport-loop',
-    marked: true
-  }, bounds, chunkX, chunkZ);
   if (FAST_ROADS_UNDERGROUND) {
     addTransportSegmentRoad(data, 'airport-highway-ground-connector', 'airport-highway-connector', ROAD_TYPES.mainRoad, hub.gate, hub.terminalGate, 18, GROUND_DRIVE_Y, {
       side: 'airport-highway-connector',
-      marked: true
+      marked: true,
+      trafficDisabled: true
     }, bounds, chunkX, chunkZ);
   }
   if (!FAST_ROADS_UNDERGROUND) {
@@ -8514,125 +10025,1107 @@ function addAirportHub(data, bounds, chunkX, chunkZ) {
     ], 14);
   }
 
-  addTransportBuilding(data, bounds, createTransportBuilding('airport-terminal', -5650, 5350, 330, 28, 58, '#7898a8', 'airportTerminal'));
-  addTransportBuilding(data, bounds, createTransportBuilding('airport-terminal-concourse-west', -5900, 5348, 58, 15, 56, '#7898a8', 'airportTerminal'));
-  addTransportBuilding(data, bounds, createTransportBuilding('airport-terminal-concourse-east', -5525, 5342, 56, 14, 56, '#7898a8', 'airportTerminal'));
-  addTransportBuilding(data, bounds, createTransportBuilding('airport-cargo-hall', -6100, 5320, 140, 18, 64, '#c28f69', 'airportCargo'));
-  addTransportBuilding(data, bounds, createTransportBuilding('airport-hangar-west', -7040, 5550, 260, 34, 126, '#a3aa78', 'airportHangar'));
-  addTransportBuilding(data, bounds, createTransportBuilding('airport-hangar-north', -6900, 5860, 250, 32, 118, '#a3aa78', 'airportHangar'));
-  addTransportBuilding(data, bounds, createTransportBuilding('airport-control-tower', -6040, 5190, 30, 86, 30, '#9b89b0', 'controlTower'));
+  addBaotouAirportBuildings(data, bounds);
 
   addAirportRunwayMarkings(data, bounds);
   addAirportTaxiwayMarkings(data, bounds);
   addAirportTerminalDetails(data, bounds);
+  addAirportApronDetails(data, bounds);
+  addAirportGroundServiceEquipment(data, bounds);
+  addAirportAirfieldLights(data, bounds);
+  addAirportTowerDetails(data, bounds);
+  addAirportHangarDetails(data, bounds);
+  addAirportEntranceDetails(data, bounds);
+  addAirportPerimeterFence(data, bounds);
 
-  addTransportRoadSign(data, bounds, {
-    id: 'airport-main-sign',
-    text: 'AIRPORT',
-    position: [-5620, 4.4, 5080],
-    rotation: [0, -Math.PI / 6, 0],
-    scale: [9.4, 2.4, 0.28],
-    color: '#9fd08c'
-  });
-  addTransportRoadSign(data, bounds, {
-    id: 'airport-runway-sign',
-    text: 'RUNWAY 09',
-    position: [-7350, 3.8, 6060],
-    rotation: [0, Math.PI / 2, 0],
-    scale: [8.6, 2.1, 0.28],
-    color: '#f2d486'
-  });
+  addAirportWayfindingSigns(data, bounds);
 
-  addTransportAircraft(data, bounds, 'airport-plane-a', -5860, 5590, Math.PI / 2, '#d9d3ff');
-  addTransportAircraft(data, bounds, 'airport-plane-b', -6100, 5830, Math.PI / 2, '#f2d486');
-  addTransportAircraft(data, bounds, 'airport-plane-c', -7170, 6120, 0, '#e7edf1');
-  addTransportAircraft(data, bounds, 'airport-plane-d', -5650, 5570, Math.PI / 2, '#75b7d8');
+  addBaotouAirportAircraft(data, bounds);
   addTransportSafeSpawn(data, bounds, chunkX, chunkZ, 'airport-spawn', hub.spawn, 'airport');
 }
 
-function addAirportRunwayMarkings(data, bounds) {
-  for (let x = -7300; x <= -5660; x += 126) {
-    addTransportFlatRect(data, bounds, `airport-runway-center-${x}`, x, 6120, 42, 0.92, '#e7edf1');
+function addBaotouAirportPavements(data, bounds) {
+  addAirportPlanSegment(data, bounds, 'airport-runway-safety-strip', -1348, 1348, 0, 126, '#29332b', 'airportRunwayShoulder', AIRPORT_PAVEMENT_BASE_Y - 0.012);
+  addAirportPlanSegment(data, bounds, 'airport-runway-13-31', -1285, 1285, 0, BAOTOU_AIRPORT_RUNWAY.width, '#182024', 'airportRunway');
+  addAirportPlanSegment(data, bounds, 'airport-runway-left-shoulder', -1305, 1305, -51, 22, '#273136', 'airportRunwayShoulder', AIRPORT_PAVEMENT_BASE_Y - 0.006);
+  addAirportPlanSegment(data, bounds, 'airport-runway-right-shoulder', -1305, 1305, 51, 22, '#273136', 'airportRunwayShoulder', AIRPORT_PAVEMENT_BASE_Y - 0.006);
+  addAirportPlanSegment(data, bounds, 'airport-runway-blast-pad-31', -1415, -1300, 0, 62, '#252b2e', 'airportRunwayShoulder', AIRPORT_PAVEMENT_BASE_Y - 0.004);
+  addAirportPlanSegment(data, bounds, 'airport-runway-blast-pad-13', 1300, 1415, 0, 62, '#252b2e', 'airportRunwayShoulder', AIRPORT_PAVEMENT_BASE_Y - 0.004);
+  addAirportPlanSegment(data, bounds, 'airport-parallel-taxiway-terminal', -1190, 1190, AIRPORT_TERMINAL_SIDE * 230, 34, '#3b4246', 'airportTaxiway');
+  addAirportPlanSegment(data, bounds, 'airport-terminal-apron', -665, 725, AIRPORT_TERMINAL_SIDE * 395, 292, '#454b4f', 'airportApron');
+  addAirportPlanSegment(data, bounds, 'airport-cargo-apron', 720, 1135, AIRPORT_TERMINAL_SIDE * 418, 210, '#41494e', 'airportApron');
+  addAirportPlanSegment(data, bounds, 'airport-maintenance-apron', -1135, -720, AIRPORT_TERMINAL_SIDE * 392, 190, '#41494e', 'airportApron');
+
+  for (const forward of AIRPORT_TAXIWAY_CONNECTORS) {
+    addAirportPlanCrossSegment(
+      data,
+      bounds,
+      `airport-cross-taxiway-${forward}`,
+      forward,
+      AIRPORT_TERMINAL_SIDE * 42,
+      AIRPORT_TERMINAL_SIDE * 242,
+      23,
+      '#363e42',
+      'airportTaxiway'
+    );
   }
 
-  for (const thresholdX of [-7375, -5565]) {
-    addTransportFlatRect(data, bounds, `airport-runway-threshold-${thresholdX}-bar`, thresholdX, 6120, 3.8, 52, '#e7edf1');
+  addAirportCurvedTaxiway(data, bounds, 'airport-curved-taxiway-a', [
+    [-1080, AIRPORT_TERMINAL_SIDE * 230],
+    [-1015, AIRPORT_TERMINAL_SIDE * 286],
+    [-905, AIRPORT_TERMINAL_SIDE * 315],
+    [-790, AIRPORT_TERMINAL_SIDE * 345]
+  ], 27, '#3b4246', 'airportTaxiway');
+  addAirportCurvedTaxiway(data, bounds, 'airport-curved-taxiway-b', [
+    [-520, AIRPORT_TERMINAL_SIDE * 230],
+    [-455, AIRPORT_TERMINAL_SIDE * 292],
+    [-340, AIRPORT_TERMINAL_SIDE * 330],
+    [-210, AIRPORT_TERMINAL_SIDE * 350]
+  ], 27, '#3b4246', 'airportTaxiway');
+  addAirportCurvedTaxiway(data, bounds, 'airport-curved-taxiway-c', [
+    [250, AIRPORT_TERMINAL_SIDE * 230],
+    [325, AIRPORT_TERMINAL_SIDE * 294],
+    [452, AIRPORT_TERMINAL_SIDE * 330],
+    [610, AIRPORT_TERMINAL_SIDE * 352]
+  ], 27, '#3b4246', 'airportTaxiway');
+}
 
-    for (const offset of [-23, -14, -5, 5, 14, 23]) {
-      addTransportFlatRect(
+function addBaotouAirportLandsideRoads(data, bounds, chunkX, chunkZ, hub) {
+  const roads = [
+    ['airport-terminal-front-road', 'x', -5795, 5045, 610, 13],
+    ['airport-terminal-departures-lane', 'x', -5795, 5012, 545, 9],
+    ['airport-terminal-arrivals-lane', 'x', -5795, 4982, 510, 9],
+    ['airport-terminal-north-service', 'z', -6100, 5355, 12, 330],
+    ['airport-terminal-east-service', 'z', -5485, 5200, 11, 355],
+    ['airport-parking-access-road', 'x', -6020, 4868, 420, 10]
+  ];
+
+  for (const [id, axis, x, z, width, depth] of roads) {
+    addTransportRectRoad(data, id, 'airport-loop', ROAD_TYPES.groundRoad, x, z, width, depth, {
+      axis,
+      side: 'airport-loop',
+      marked: true,
+      trafficDisabled: true
+    }, bounds, chunkX, chunkZ);
+  }
+
+  const accessSegments = [
+    ['airport-access-terminal-gate-east', hub.terminalGate, { x: -5520, z: 5045 }, 12],
+    ['airport-access-terminal-gate-west', hub.terminalGate, { x: -6080, z: 5045 }, 12],
+    ['airport-access-from-highway', hub.gate, { x: -5520, z: 5045 }, 14]
+  ];
+
+  for (const [id, start, end, width] of accessSegments) {
+    addTransportSegmentRoad(data, id, 'airport-loop', ROAD_TYPES.groundRoad, start, end, width, GROUND_DRIVE_Y, {
+      side: 'airport-loop',
+      marked: true,
+      trafficDisabled: true
+    }, bounds, chunkX, chunkZ);
+  }
+
+  const parkingLots = [
+    ['airport-open-parking-west', -6080, 4898, 280, 126],
+    ['airport-taxi-hold-lot', -5538, 4890, 118, 78],
+    ['airport-car-meet-photo-bay', -6315, 5010, 118, 66]
+  ];
+
+  for (const [id, x, z, width, depth] of parkingLots) {
+    const parking = addTransportRectRoad(data, id, 'airport-parking', ROAD_TYPES.parking, x, z, width, depth, {
+      axis: 'parking',
+      side: 'airport-parking',
+      marked: false,
+      trafficDisabled: true
+    }, bounds, chunkX, chunkZ);
+
+    if (parking) data.parkingMarks.push(...createParkingMarks(parking));
+  }
+}
+
+function addBaotouAirportBuildings(data, bounds) {
+  const buildings = [
+    ['airport-main-terminal', -5865, 5215, 430, 30, 78, '#5f7580', 'airportTerminal'],
+    ['airport-terminal-west-pier', -6135, 5315, 225, 18, 48, '#7898a8', 'airportTerminal'],
+    ['airport-terminal-east-pier', -5595, 5128, 225, 18, 48, '#7898a8', 'airportTerminal'],
+    ['airport-ground-transport-hall', -5750, 4990, 250, 21, 82, '#c28f69', 'airportTransitHub'],
+    ['airport-terminal-parking-garage', -5515, 4930, 260, 18, 118, '#6f8490', 'airportParkingGarage'],
+    ['airport-cargo-terminal', -5510, 5775, 220, 18, 88, '#c28f69', 'airportCargo'],
+    ['airport-maintenance-hangar-west', -6750, 5155, 265, 31, 142, '#aeb8b8', 'airportHangar'],
+    ['airport-maintenance-hangar-east', -5300, 5980, 245, 31, 138, '#aeb8b8', 'airportHangar'],
+    ['airport-control-tower-shaft', -6080, 5090, 24, 82, 24, '#6f8490', 'controlTower']
+  ];
+
+  for (const [id, x, z, width, height, depth, color, kind] of buildings) {
+    addTransportBuilding(data, bounds, createTransportBuilding(id, x, z, width, height, depth, color, kind));
+  }
+}
+
+function getAirportPlanPose() {
+  const tangent = normalizeVector({
+    x: BAOTOU_AIRPORT_RUNWAY.end.x - BAOTOU_AIRPORT_RUNWAY.start.x,
+    z: BAOTOU_AIRPORT_RUNWAY.end.z - BAOTOU_AIRPORT_RUNWAY.start.z
+  });
+  const normal = { x: -tangent.z, z: tangent.x };
+
+  return {
+    center: BAOTOU_AIRPORT_CENTER,
+    length: Math.hypot(
+      BAOTOU_AIRPORT_RUNWAY.end.x - BAOTOU_AIRPORT_RUNWAY.start.x,
+      BAOTOU_AIRPORT_RUNWAY.end.z - BAOTOU_AIRPORT_RUNWAY.start.z
+    ),
+    normal,
+    tangent,
+    yaw: getSegmentBoxYaw(BAOTOU_AIRPORT_RUNWAY.start, BAOTOU_AIRPORT_RUNWAY.end)
+  };
+}
+
+function getAirportPlanPoint(forward, lateral) {
+  const pose = getAirportPlanPose();
+  return offsetPlanarPoint(pose.center, pose.tangent, pose.normal, forward, lateral);
+}
+
+function addAirportPlanSegment(
+  data,
+  bounds,
+  id,
+  forwardStart,
+  forwardEnd,
+  lateral,
+  width,
+  color,
+  type,
+  baseY = AIRPORT_PAVEMENT_BASE_Y,
+  height = 0.055
+) {
+  addTransportSegmentObstacle(
+    data,
+    bounds,
+    id,
+    getAirportPlanPoint(forwardStart, lateral),
+    getAirportPlanPoint(forwardEnd, lateral),
+    width,
+    height,
+    color,
+    baseY,
+    { type }
+  );
+}
+
+function addAirportPlanCrossSegment(
+  data,
+  bounds,
+  id,
+  forward,
+  lateralStart,
+  lateralEnd,
+  width,
+  color,
+  type,
+  baseY = AIRPORT_PAVEMENT_BASE_Y,
+  height = 0.055
+) {
+  addTransportSegmentObstacle(
+    data,
+    bounds,
+    id,
+    getAirportPlanPoint(forward, lateralStart),
+    getAirportPlanPoint(forward, lateralEnd),
+    width,
+    height,
+    color,
+    baseY,
+    { type }
+  );
+}
+
+function addAirportCurvedTaxiway(data, bounds, id, controlPoints, width, color, type, baseY = AIRPORT_PAVEMENT_BASE_Y, height = 0.055) {
+  for (let index = 0; index < controlPoints.length - 1; index += 1) {
+    const [startForward, startLateral] = controlPoints[index];
+    const [endForward, endLateral] = controlPoints[index + 1];
+    addTransportSegmentObstacle(
+      data,
+      bounds,
+      `${id}-${index}`,
+      getAirportPlanPoint(startForward, startLateral),
+      getAirportPlanPoint(endForward, endLateral),
+      width,
+      height,
+      color,
+      baseY,
+      { type }
+    );
+  }
+}
+
+function addAirportPlanBox(
+  data,
+  bounds,
+  id,
+  forward,
+  lateral,
+  width,
+  height,
+  depth,
+  color,
+  baseY = AIRPORT_MARKING_BASE_Y,
+  type = 'airportDetail',
+  rotationOffset = 0
+) {
+  const point = getAirportPlanPoint(forward, lateral);
+  addTransportRectObstacle(data, id, point.x, point.z, width, height, depth, color, bounds, {
+    baseY,
+    rotationY: getAirportPlanPose().yaw + rotationOffset,
+    type
+  });
+}
+
+function addAirportPlanBuildingSegment(data, bounds, id, forwardStart, forwardEnd, lateral, width, height, color, type) {
+  addTransportSegmentObstacle(
+    data,
+    bounds,
+    id,
+    getAirportPlanPoint(forwardStart, lateral),
+    getAirportPlanPoint(forwardEnd, lateral),
+    width,
+    height,
+    color,
+    0.08,
+    { type }
+  );
+}
+
+function addAirportRunwayMarkings(data, bounds) {
+  const halfLength = getAirportPlanPose().length / 2;
+
+  for (const lateral of [-BAOTOU_AIRPORT_RUNWAY.width / 2 + 2.8, BAOTOU_AIRPORT_RUNWAY.width / 2 - 2.8]) {
+    addAirportPlanSegment(
+      data,
+      bounds,
+      `airport-runway-${BAOTOU_AIRPORT_RUNWAY.id}-edge-${lateral}`,
+      -halfLength + 42,
+      halfLength - 42,
+      lateral,
+      0.82,
+      '#f2f0dc',
+      'airportRunwayMark',
+      AIRPORT_MARKING_BASE_Y,
+      0.034
+    );
+  }
+
+  for (let forward = -halfLength + 170; forward <= halfLength - 170; forward += 126) {
+    addAirportPlanSegment(
+      data,
+      bounds,
+      `airport-runway-${BAOTOU_AIRPORT_RUNWAY.id}-center-${Math.round(forward)}`,
+      forward - 21,
+      forward + 21,
+      0,
+      0.92,
+      '#e7edf1',
+      'airportRunwayMark',
+      AIRPORT_MARKING_BASE_Y,
+      0.035
+    );
+  }
+
+  for (const [label, forward, sign] of [
+    ['31', -halfLength + 54, 1],
+    ['13', halfLength - 54, -1]
+  ]) {
+    addAirportPlanCrossSegment(
+      data,
+      bounds,
+      `airport-runway-${BAOTOU_AIRPORT_RUNWAY.id}-threshold-${label}-bar`,
+      forward,
+      -BAOTOU_AIRPORT_RUNWAY.width / 2 + 5,
+      BAOTOU_AIRPORT_RUNWAY.width / 2 - 5,
+      3.8,
+      '#e7edf1',
+      'airportRunwayMark',
+      AIRPORT_MARKING_BASE_Y,
+      0.035
+    );
+
+    for (const lateral of [-23, -14, -5, 5, 14, 23]) {
+      addAirportPlanSegment(
         data,
         bounds,
-        `airport-runway-threshold-${thresholdX}-${offset}`,
-        thresholdX + (thresholdX < -6500 ? 28 : -28),
-        6120 + offset,
-        26,
-        2.4,
-        '#e7edf1'
+        `airport-runway-${BAOTOU_AIRPORT_RUNWAY.id}-threshold-${label}-${lateral}`,
+        forward + sign * 18,
+        forward + sign * 46,
+        lateral,
+        2.2,
+        '#e7edf1',
+        'airportRunwayMark',
+        AIRPORT_MARKING_BASE_Y,
+        0.035
+      );
+    }
+
+    addAirportRunwayNumber(data, bounds, label, forward + sign * 95, sign);
+  }
+
+  for (const forward of [-halfLength + 255, halfLength - 255]) {
+    for (const lateral of [-10, 10]) {
+      addAirportPlanSegment(
+        data,
+        bounds,
+        `airport-runway-${BAOTOU_AIRPORT_RUNWAY.id}-aiming-${Math.round(forward)}-${lateral}`,
+        forward - 32,
+        forward + 32,
+        lateral,
+        5.2,
+        '#f2f0dc',
+        'airportRunwayMark',
+        AIRPORT_MARKING_BASE_Y,
+        0.035
       );
     }
   }
 
-  addTransportFlatRect(data, bounds, 'airport-runway-touchdown-west-a', -7100, 6098, 72, 2.2, '#d7d0bb');
-  addTransportFlatRect(data, bounds, 'airport-runway-touchdown-west-b', -7100, 6142, 72, 2.2, '#d7d0bb');
-  addTransportFlatRect(data, bounds, 'airport-runway-touchdown-east-a', -5840, 6098, 72, 2.2, '#d7d0bb');
-  addTransportFlatRect(data, bounds, 'airport-runway-touchdown-east-b', -5840, 6142, 72, 2.2, '#d7d0bb');
+  for (const forward of [-halfLength + 360, -halfLength + 500, halfLength - 500, halfLength - 360]) {
+    for (const lateral of [-15, 15]) {
+      addAirportPlanSegment(
+        data,
+        bounds,
+        `airport-runway-${BAOTOU_AIRPORT_RUNWAY.id}-touchdown-${Math.round(forward)}-${lateral}`,
+        forward - 36,
+        forward + 36,
+        lateral,
+        2.2,
+        '#d7d0bb',
+        'airportRunwayMark',
+        AIRPORT_MARKING_BASE_Y,
+        0.035
+      );
+    }
+  }
+}
+
+function addAirportRunwayNumber(data, bounds, label, forward, directionSign) {
+  const digits = String(label).padStart(2, '0').slice(0, 2).split('');
+  const digitSpacing = 15;
+
+  digits.forEach((digit, digitIndex) => {
+    const lateralBase = (digitIndex - 0.5) * digitSpacing;
+    addAirportSevenSegmentDigit(
+      data,
+      bounds,
+      `airport-runway-number-${label}-${digitIndex}`,
+      digit,
+      forward,
+      lateralBase,
+      directionSign
+    );
+  });
+}
+
+function addAirportSevenSegmentDigit(data, bounds, id, digit, forward, lateral, directionSign) {
+  const segmentMap = {
+    0: ['top', 'upperLeft', 'upperRight', 'lowerLeft', 'lowerRight', 'bottom'],
+    1: ['upperRight', 'lowerRight'],
+    2: ['top', 'upperRight', 'middle', 'lowerLeft', 'bottom'],
+    3: ['top', 'upperRight', 'middle', 'lowerRight', 'bottom'],
+    4: ['upperLeft', 'upperRight', 'middle', 'lowerRight'],
+    5: ['top', 'upperLeft', 'middle', 'lowerRight', 'bottom'],
+    6: ['top', 'upperLeft', 'middle', 'lowerLeft', 'lowerRight', 'bottom'],
+    7: ['top', 'upperRight', 'lowerRight'],
+    8: ['top', 'upperLeft', 'upperRight', 'middle', 'lowerLeft', 'lowerRight', 'bottom'],
+    9: ['top', 'upperLeft', 'upperRight', 'middle', 'lowerRight', 'bottom']
+  };
+  const activeSegments = segmentMap[digit] ?? segmentMap[0];
+  const forwardFlip = directionSign < 0 ? -1 : 1;
+  const specs = {
+    top: { f: 11.2 * forwardFlip, l: 0, w: 2.2, d: 10.8 },
+    middle: { f: 0, l: 0, w: 2.2, d: 10.2 },
+    bottom: { f: -11.2 * forwardFlip, l: 0, w: 2.2, d: 10.8 },
+    upperLeft: { f: 5.6 * forwardFlip, l: -5.6, w: 10.6, d: 2.2 },
+    upperRight: { f: 5.6 * forwardFlip, l: 5.6, w: 10.6, d: 2.2 },
+    lowerLeft: { f: -5.6 * forwardFlip, l: -5.6, w: 10.6, d: 2.2 },
+    lowerRight: { f: -5.6 * forwardFlip, l: 5.6, w: 10.6, d: 2.2 }
+  };
+
+  for (const segmentName of activeSegments) {
+    const spec = specs[segmentName];
+    addAirportPlanBox(
+      data,
+      bounds,
+      `${id}-${segmentName}`,
+      forward + spec.f,
+      lateral + spec.l,
+      spec.w,
+      0.036,
+      spec.d,
+      '#f2f0dc',
+      AIRPORT_MARKING_BASE_Y + 0.006,
+      'airportRunwayMark'
+    );
+  }
 }
 
 function addAirportTaxiwayMarkings(data, bounds) {
   const taxiYellow = '#f2d486';
 
-  addTransportFlatSegment(data, bounds, 'airport-taxi-line-main', { x: -7180, z: 5960 }, { x: -5600, z: 5960 }, 0.64, taxiYellow);
-  addTransportFlatSegment(data, bounds, 'airport-taxi-line-west-connector', { x: -7040, z: 5960 }, { x: -7040, z: 5585 }, 0.64, taxiYellow);
-  addTransportFlatSegment(data, bounds, 'airport-taxi-line-center-connector', { x: -6100, z: 5960 }, { x: -6100, z: 5620 }, 0.64, taxiYellow);
-  addTransportFlatSegment(data, bounds, 'airport-taxi-line-east-connector', { x: -5840, z: 5960 }, { x: -5840, z: 5625 }, 0.64, taxiYellow);
-  addTransportFlatSegment(data, bounds, 'airport-apron-stand-line-a', { x: -6140, z: 5660 }, { x: -5840, z: 5525 }, 0.58, taxiYellow);
-  addTransportFlatSegment(data, bounds, 'airport-apron-stand-line-b', { x: -5940, z: 5660 }, { x: -5640, z: 5525 }, 0.58, taxiYellow);
-  addTransportFlatSegment(data, bounds, 'airport-apron-stand-line-c', { x: -5740, z: 5660 }, { x: -5460, z: 5525 }, 0.58, taxiYellow);
+  addAirportPlanSegment(
+    data,
+    bounds,
+    'airport-taxi-line-parallel-terminal',
+    -1150,
+    1150,
+    AIRPORT_TERMINAL_SIDE * 230,
+    0.64,
+    taxiYellow,
+    'airportTaxiwayMark',
+    AIRPORT_MARKING_BASE_Y,
+    0.035
+  );
 
-  for (const x of [-6120, -5920, -5720, -5520]) {
-    addTransportFlatRect(data, bounds, `airport-apron-stand-${x}`, x, 5535, 4, 38, taxiYellow);
+  for (const forward of AIRPORT_TAXIWAY_CONNECTORS) {
+    addAirportPlanCrossSegment(
+      data,
+      bounds,
+      `airport-taxi-line-cross-${forward}`,
+      forward,
+      AIRPORT_TERMINAL_SIDE * 42,
+      AIRPORT_TERMINAL_SIDE * 242,
+      0.64,
+      taxiYellow,
+      'airportTaxiwayMark',
+      AIRPORT_MARKING_BASE_Y,
+      0.035
+    );
   }
+
+  for (const [id, controlPoints] of [
+    ['airport-taxi-line-curve-a', [[-1080, AIRPORT_TERMINAL_SIDE * 230], [-1015, AIRPORT_TERMINAL_SIDE * 286], [-905, AIRPORT_TERMINAL_SIDE * 315], [-790, AIRPORT_TERMINAL_SIDE * 345]]],
+    ['airport-taxi-line-curve-b', [[-520, AIRPORT_TERMINAL_SIDE * 230], [-455, AIRPORT_TERMINAL_SIDE * 292], [-340, AIRPORT_TERMINAL_SIDE * 330], [-210, AIRPORT_TERMINAL_SIDE * 350]]],
+    ['airport-taxi-line-curve-c', [[250, AIRPORT_TERMINAL_SIDE * 230], [325, AIRPORT_TERMINAL_SIDE * 294], [452, AIRPORT_TERMINAL_SIDE * 330], [610, AIRPORT_TERMINAL_SIDE * 352]]]
+  ]) {
+    addAirportCurvedTaxiway(data, bounds, id, controlPoints, 0.64, taxiYellow, 'airportTaxiwayMark', AIRPORT_MARKING_BASE_Y, 0.035);
+  }
+
+  for (const { forward, id } of AIRPORT_GATE_STANDS) {
+    addAirportPlanCrossSegment(
+      data,
+      bounds,
+      `airport-stand-lead-${forward}`,
+      forward,
+      AIRPORT_TERMINAL_SIDE * 268,
+      AIRPORT_TERMINAL_SIDE * 455,
+      0.58,
+      taxiYellow,
+      'airportTaxiwayMark',
+      AIRPORT_MARKING_BASE_Y,
+      0.035
+    );
+    addAirportPlanSegment(
+      data,
+      bounds,
+      `airport-stand-stop-${id}`,
+      forward - 18,
+      forward + 18,
+      AIRPORT_TERMINAL_SIDE * 455,
+      3.8,
+      taxiYellow,
+      'airportTaxiwayMark',
+      AIRPORT_MARKING_BASE_Y,
+      0.035
+    );
+
+    addAirportPlanBox(
+      data,
+      bounds,
+      `airport-stand-safety-box-${id}-front`,
+      forward + 42,
+      AIRPORT_TERMINAL_SIDE * 470,
+      0.58,
+      0.034,
+      72,
+      '#f2d486',
+      AIRPORT_MARKING_BASE_Y,
+      'airportTaxiwayMark'
+    );
+    addAirportPlanBox(
+      data,
+      bounds,
+      `airport-stand-safety-box-${id}-rear`,
+      forward - 42,
+      AIRPORT_TERMINAL_SIDE * 470,
+      0.58,
+      0.034,
+      72,
+      '#f2d486',
+      AIRPORT_MARKING_BASE_Y,
+      'airportTaxiwayMark'
+    );
+  }
+
+  addAirportTaxiwaySigns(data, bounds);
 }
 
 function addAirportTerminalDetails(data, bounds) {
   const bridgeColor = '#b8c1c7';
 
-  addTransportSegmentObstacle(
-    data,
-    bounds,
-    'airport-jetbridge-a',
-    { x: -5900, z: 5408 },
-    { x: -5860, z: 5548 },
-    5.6,
-    3.1,
-    bridgeColor,
-    2.8
-  );
-  addTransportSegmentObstacle(
-    data,
-    bounds,
-    'airport-jetbridge-b',
-    { x: -5650, z: 5388 },
-    { x: -5650, z: 5540 },
-    5.2,
-    3.0,
-    bridgeColor,
-    2.8
-  );
-  addTransportSegmentObstacle(
-    data,
-    bounds,
-    'airport-jetbridge-c',
-    { x: -5525, z: 5358 },
-    { x: -5588, z: 5538 },
-    5.2,
-    3.0,
-    bridgeColor,
-    2.8
-  );
+  for (const [id, startForward, endForward, lateral, width, height, color] of [
+    ['airport-terminal-concourse-center', -590, 705, AIRPORT_TERMINAL_SIDE * 520, 48, 18, '#7898a8'],
+    ['airport-terminal-concourse-west', -660, -325, AIRPORT_TERMINAL_SIDE * 438, 42, 15, '#6f8fa0'],
+    ['airport-terminal-concourse-mid', -120, 220, AIRPORT_TERMINAL_SIDE * 438, 42, 15, '#6f8fa0'],
+    ['airport-terminal-concourse-east', 420, 735, AIRPORT_TERMINAL_SIDE * 438, 42, 15, '#6f8fa0']
+  ]) {
+    addAirportPlanBuildingSegment(data, bounds, id, startForward, endForward, lateral, width, height, color, 'airportTerminalConcourse');
+  }
 
-  addTransportRectObstacle(data, 'airport-terminal-glass-front', -5650, 5246, 300, 5.4, 3.2, '#d9d3ff', bounds);
-  addTransportRectObstacle(data, 'airport-terminal-dropoff-canopy', -5580, 5178, 210, 4.2, 18, '#68737a', bounds);
+  for (const { id, label, forward } of AIRPORT_GATE_STANDS) {
+    const bridgeId = `airport-jetbridge-${id}`;
+    const start = getAirportPlanPoint(forward, AIRPORT_TERMINAL_SIDE * 500);
+    const end = getAirportPlanPoint(forward, AIRPORT_TERMINAL_SIDE * 438);
+    const center = midpoint(start, end);
+    const yaw = getSegmentBoxYaw(start, end);
+    addTransportSegmentObstacle(data, bounds, bridgeId, start, end, 5.4, 3.1, bridgeColor, 2.8, {
+      type: 'airportJetbridge'
+    });
+    addTransportRectObstacle(data, `${bridgeId}-gate-head`, end.x, end.z, 10.5, 4.2, 7.4, '#d4dde2', bounds, {
+      baseY: 1.7,
+      rotationY: yaw,
+      type: 'airportJetbridge'
+    });
+    addTransportRectObstacle(data, `${bridgeId}-support`, center.x, center.z, 1.5, 2.9, 1.5, '#87939a', bounds, {
+      baseY: 0.08,
+      type: 'airportJetbridgeSupport'
+    });
+    addTransportRectObstacle(data, `${bridgeId}-wheel-bogie`, center.x, center.z, 6.2, 0.55, 1.2, '#2d3438', bounds, {
+      baseY: 0.18,
+      rotationY: yaw,
+      type: 'airportJetbridgeSupport'
+    });
+    addAirportPlanRoadSign(data, bounds, `airport-${id}-gate-sign`, label, forward, AIRPORT_TERMINAL_SIDE * 513, 5.9, [4.8, 1.3, 0.18], '#203b49', 0);
+  }
+
+  const greenStationPlacement = getMetroStationPlacementById('green', 'green-airport-transfer');
+  if (greenStationPlacement) {
+    const stationPoint = greenStationPlacement.point;
+    const stationY = greenStationPlacement.elevatedY ?? METRO_AIRPORT_GREEN_TERMINAL_ELEVATED_Y;
+    const terminalDoor = getAirportPlanPoint(150, AIRPORT_TERMINAL_SIDE * 700);
+    addTransportSegmentObstacle(
+      data,
+      bounds,
+      'airport-green-terminal-metro-walkway',
+      stationPoint,
+      terminalDoor,
+      9.2,
+      0.56,
+      '#9fd08c',
+      stationY + 0.72,
+      { type: 'airportMetroConnector' }
+    );
+    addTransportSegmentObstacle(
+      data,
+      bounds,
+      'airport-green-terminal-metro-walkway-roof',
+      stationPoint,
+      terminalDoor,
+      10.4,
+      0.44,
+      '#5f7580',
+      stationY + 4.95,
+      { type: 'airportMetroConnectorRoof' }
+    );
+    addTransportRectObstacle(data, 'airport-green-terminal-elevator-core', terminalDoor.x, terminalDoor.z - 16, 14, 22.2, 14, '#6f8fa0', bounds, {
+      baseY: 0.08,
+      type: 'airportMetroConnector'
+    });
+    addTransportRectObstacle(data, 'airport-green-terminal-station-headhouse', stationPoint.x, stationPoint.z, 20, 7.6, 16, '#7898a8', bounds, {
+      baseY: stationY + 0.84,
+      rotationY: greenStationPlacement.yaw,
+      type: 'airportMetroConnector'
+    });
+  }
+
+  addTransportRectObstacle(data, 'airport-terminal-glass-front', -5865, 5176, 382, 7.2, 5.6, '#d9d3ff', bounds);
+  addTransportRectObstacle(data, 'airport-terminal-glass-upper', -5865, 5256, 392, 5.8, 4.2, '#c4e4ea', bounds, {
+    baseY: 16.4,
+    type: 'airportTerminalGlass'
+  });
+  addTransportRectObstacle(data, 'airport-terminal-dropoff-canopy', -5795, 5065, 520, 4.2, 22, '#68737a', bounds);
+  addTransportRectObstacle(data, 'airport-terminal-transport-roof', -5750, 4990, 235, 4.8, 88, '#58646a', bounds, {
+    baseY: 7.0,
+    type: 'airportTransitRoof'
+  });
+  addTransportRectObstacle(data, 'airport-terminal-metal-roof', -5865, 5215, 452, 2.2, 92, '#4f5c61', bounds, {
+    baseY: 29.7,
+    type: 'airportTerminalRoof'
+  });
+
+  for (const { id, forward } of AIRPORT_GATE_STANDS) {
+    const point = getAirportPlanPoint(forward, AIRPORT_TERMINAL_SIDE * 505);
+    addTransportRectObstacle(data, `airport-gate-window-${id}`, point.x, point.z, 4.2, 1.9, 34, '#c4e4ea', bounds, {
+      baseY: 6.2,
+      rotationY: getAirportPlanPose().yaw,
+      type: 'airportGateWindow'
+    });
+  }
+
+  for (const [endLabel, forward] of [['southwest', -1325], ['northeast', 1325]]) {
+    for (const lateral of [-22, 22]) {
+      const point = getAirportPlanPoint(forward, lateral);
+      addTransportRectObstacle(data, `airport-approach-light-${endLabel}-${lateral}`, point.x, point.z, 1.4, 1.1, 10, '#f4d98a', bounds, {
+        baseY: 0.15,
+        rotationY: getAirportPlanPose().yaw,
+        type: 'airportApproachLight'
+      });
+    }
+  }
+}
+
+function addAirportPerimeterFence(data, bounds) {
+  const fencePoints = [
+    getAirportPlanPoint(-1370, 575),
+    getAirportPlanPoint(1370, 575),
+    getAirportPlanPoint(1390, AIRPORT_TERMINAL_SIDE * 760),
+    getAirportPlanPoint(-1390, AIRPORT_TERMINAL_SIDE * 760)
+  ];
+  const edges = [
+    [fencePoints[0], fencePoints[1], 'opposite-runway'],
+    [fencePoints[1], fencePoints[2], 'northeast-end'],
+    [fencePoints[3], fencePoints[0], 'southwest-end'],
+    [getAirportPlanPoint(-1390, AIRPORT_TERMINAL_SIDE * 760), getAirportPlanPoint(-330, AIRPORT_TERMINAL_SIDE * 760), 'terminal-side-west'],
+    [getAirportPlanPoint(180, AIRPORT_TERMINAL_SIDE * 760), getAirportPlanPoint(1390, AIRPORT_TERMINAL_SIDE * 760), 'terminal-side-east']
+  ];
+
+  for (const [start, end, label] of edges) {
+    addAirportFenceSegment(data, bounds, `airport-perimeter-fence-${label}`, start, end);
+  }
+}
+
+function addAirportFenceSegment(data, bounds, id, start, end) {
+  const clip = clipLineToBounds(start, end, bounds, 2.4);
+  if (!clip) return;
+
+  for (const [railId, baseOffset] of [['lower', 1.05], ['upper', 2.45]]) {
+    addTransportSegmentObstacle(
+      data,
+      bounds,
+      `${id}-${railId}-rail`,
+      start,
+      end,
+      0.34,
+      0.22,
+      '#8fa0a6',
+      GROUND_DRIVE_Y + baseOffset,
+      { type: 'airportFence' }
+    );
+  }
+
+  data.tunnelColliders.push(createHeightLimitedSegmentCollider(
+    `${id}-collider`,
+    'airportFence',
+    clip.start,
+    clip.end,
+    1.1,
+    GROUND_DRIVE_Y,
+    GROUND_DRIVE_Y + AIRPORT_FENCE_HEIGHT + 0.35
+  ));
+
+  const length = Math.hypot(clip.end.x - clip.start.x, clip.end.z - clip.start.z);
+  const postCount = Math.max(2, Math.floor(length / 82));
+  for (let index = 0; index <= postCount; index += 1) {
+    const t = index / postCount;
+    const post = {
+      x: lerp(clip.start.x, clip.end.x, t),
+      z: lerp(clip.start.z, clip.end.z, t)
+    };
+    addTransportRectObstacle(data, `${id}-post-${index}`, post.x, post.z, 0.78, AIRPORT_FENCE_HEIGHT, 0.78, '#c8d3d6', bounds, {
+      baseY: GROUND_DRIVE_Y + 0.04,
+      type: 'airportFencePost'
+    });
+  }
+}
+
+function addBaotouAirportAircraft(data, bounds) {
+  const pose = getAirportPlanPose();
+  const aircraft = [
+    ...AIRPORT_GATE_STANDS.map((gate) => [
+      `airport-plane-gate-${gate.id}`,
+      gate.forward,
+      AIRPORT_TERMINAL_SIDE * 470,
+      pose.yaw - Math.PI / 2,
+      gate.livery
+    ]),
+    ['airport-plane-cargo-stand', 895, AIRPORT_TERMINAL_SIDE * 445, pose.yaw - Math.PI / 2, '#cfe1e8'],
+    ['airport-plane-maintenance-stand', -945, AIRPORT_TERMINAL_SIDE * 430, pose.yaw - Math.PI / 2, '#f7f3dc']
+  ];
+
+  for (const [id, forward, lateral, rotationY, color] of aircraft) {
+    const point = getAirportPlanPoint(forward, lateral);
+    addTransportAircraft(data, bounds, id, point.x, point.z, rotationY, color);
+  }
+}
+
+function addAirportPlanRoadSign(data, bounds, id, text, forward, lateral, y, scale, color = '#1d2b24', rotationOffset = 0) {
+  const point = getAirportPlanPoint(forward, lateral);
+  addTransportRoadSign(data, bounds, {
+    id,
+    text,
+    position: [point.x, y, point.z],
+    rotation: [0, getAirportPlanPose().yaw + rotationOffset, 0],
+    scale,
+    color
+  });
+}
+
+function addAirportWayfindingSigns(data, bounds) {
+  addTransportRoadSign(data, bounds, {
+    id: 'airport-main-terminal-sign',
+    text: 'AIRPORT\nTERMINAL',
+    position: [-5865, 6.6, 5160],
+    rotation: [0, 0, 0],
+    scale: [15.2, 3.0, 0.28],
+    color: '#203b49'
+  });
+  addTransportRoadSign(data, bounds, {
+    id: 'airport-departures-sign',
+    text: 'DEPARTURES',
+    position: [-5960, 4.25, 5030],
+    rotation: [0, 0, 0],
+    scale: [10.4, 2.0, 0.22],
+    color: '#203b49'
+  });
+  addTransportRoadSign(data, bounds, {
+    id: 'airport-arrivals-sign',
+    text: 'ARRIVALS',
+    position: [-5640, 4.25, 4990],
+    rotation: [0, 0, 0],
+    scale: [9.8, 2.0, 0.22],
+    color: '#203b49'
+  });
+  addTransportRoadSign(data, bounds, {
+    id: 'airport-parking-taxi-sign',
+    text: 'PARKING\nTAXI',
+    position: [-5528, 3.7, 4868],
+    rotation: [0, Math.PI / 10, 0],
+    scale: [8.6, 2.5, 0.24],
+    color: '#1d2b24'
+  });
+  addAirportPlanRoadSign(data, bounds, 'airport-runway-id-sign', 'RWY 13 / 31', 1220, 72, 3.8, [8.8, 2.1, 0.28], '#f2d486', Math.PI / 2);
+}
+
+function addAirportTaxiwaySigns(data, bounds) {
+  const signs = [
+    ['airport-taxiway-sign-a', 'A', -940, AIRPORT_TERMINAL_SIDE * 270],
+    ['airport-taxiway-sign-b', 'B', -420, AIRPORT_TERMINAL_SIDE * 270],
+    ['airport-taxiway-sign-c', 'C', 140, AIRPORT_TERMINAL_SIDE * 270],
+    ['airport-taxiway-sign-d', 'D', 820, AIRPORT_TERMINAL_SIDE * 270],
+    ['airport-taxiway-sign-rwy', 'RWY\n13-31', 1045, AIRPORT_TERMINAL_SIDE * 205]
+  ];
+
+  for (const [id, text, forward, lateral] of signs) {
+    addAirportPlanRoadSign(data, bounds, id, text, forward, lateral, 1.55, [4.8, 1.25, 0.18], '#f2d486', Math.PI / 2);
+  }
+}
+
+function addAirportApronDetails(data, bounds) {
+  for (const { id, label, forward } of AIRPORT_GATE_STANDS) {
+    addAirportPlanBox(data, bounds, `airport-apron-stand-${id}-nose-stop`, forward, AIRPORT_TERMINAL_SIDE * 433, 22, 0.034, 0.48, '#f2d486', AIRPORT_MARKING_BASE_Y, 'airportTaxiwayMark');
+    addAirportPlanBox(data, bounds, `airport-apron-stand-${id}-left-safe`, forward, AIRPORT_TERMINAL_SIDE * 506, 84, 0.034, 0.48, '#d7d0bb', AIRPORT_MARKING_BASE_Y, 'airportTaxiwayMark');
+    addAirportPlanBox(data, bounds, `airport-apron-stand-${id}-right-safe`, forward, AIRPORT_TERMINAL_SIDE * 434, 84, 0.034, 0.48, '#d7d0bb', AIRPORT_MARKING_BASE_Y, 'airportTaxiwayMark');
+    addAirportPlanRoadSign(data, bounds, `airport-apron-${id}-stand-label`, label, forward - 28, AIRPORT_TERMINAL_SIDE * 418, 0.86, [3.9, 1.0, 0.14], '#203b49', Math.PI / 2);
+  }
+
+  for (const forward of [-635, -380, -120, 180, 470, 695]) {
+    addAirportPlanBox(data, bounds, `airport-apron-safety-hash-${forward}`, forward, AIRPORT_TERMINAL_SIDE * 326, 38, 0.03, 0.42, '#f2d486', AIRPORT_MARKING_BASE_Y, 'airportTaxiwayMark', 0.55);
+  }
+
+  addAirportPlanBox(data, bounds, 'airport-cargo-apron-loader-box', 920, AIRPORT_TERMINAL_SIDE * 520, 110, 0.032, 0.42, '#d7d0bb', AIRPORT_MARKING_BASE_Y, 'airportTaxiwayMark');
+  addAirportPlanBox(data, bounds, 'airport-maintenance-apron-clearance-box', -935, AIRPORT_TERMINAL_SIDE * 500, 118, 0.032, 0.42, '#d7d0bb', AIRPORT_MARKING_BASE_Y, 'airportTaxiwayMark');
+}
+
+function addAirportGroundServiceEquipment(data, bounds) {
+  addAirportServiceVehicle(data, bounds, 'airport-fuel-truck-a1', -555, AIRPORT_TERMINAL_SIDE * 512, -Math.PI / 2, '#f2d486', 16, 5.4);
+  addAirportServiceVehicle(data, bounds, 'airport-catering-truck-a2', -270, AIRPORT_TERMINAL_SIDE * 515, -Math.PI / 2, '#cfd4ca', 14, 5.2);
+  addAirportServiceVehicle(data, bounds, 'airport-belt-loader-a3', 48, AIRPORT_TERMINAL_SIDE * 516, -Math.PI / 2, '#7898a8', 11, 4.4);
+  addAirportServiceVehicle(data, bounds, 'airport-service-van-a4', 438, AIRPORT_TERMINAL_SIDE * 515, -Math.PI / 2, '#9fd08c', 10, 4.2);
+  addAirportServiceVehicle(data, bounds, 'airport-tow-tractor-cargo', 840, AIRPORT_TERMINAL_SIDE * 525, -Math.PI / 2, '#d1bb78', 8.6, 4.4);
+
+  for (const [baseId, baseForward] of [['a1', -520], ['a2', -240], ['a3', 80], ['cargo', 895]]) {
+    for (let index = 0; index < 3; index += 1) {
+      addAirportPlanBox(
+        data,
+        bounds,
+        `airport-baggage-cart-${baseId}-${index}`,
+        baseForward - 34 - index * 7,
+        AIRPORT_TERMINAL_SIDE * (530 + index * 6),
+        5.2,
+        1.1,
+        3.2,
+        index % 2 === 0 ? '#d1bb78' : '#c28f69',
+        GROUND_DRIVE_Y + 0.08,
+        'airportGroundService',
+        -Math.PI / 2
+      );
+    }
+  }
+
+  for (const [id, forward, lateral] of [
+    ['airport-boarding-stairs-a1', -488, AIRPORT_TERMINAL_SIDE * 438],
+    ['airport-boarding-stairs-a4', 432, AIRPORT_TERMINAL_SIDE * 438],
+    ['airport-cargo-pallet-a', 1000, AIRPORT_TERMINAL_SIDE * 530],
+    ['airport-cargo-pallet-b', 1030, AIRPORT_TERMINAL_SIDE * 515]
+  ]) {
+    addAirportPlanBox(data, bounds, id, forward, lateral, 10.5, 1.35, 4.2, '#cfd4ca', GROUND_DRIVE_Y + 0.08, 'airportGroundService', -Math.PI / 2);
+    addAirportPlanBox(data, bounds, `${id}-rail`, forward + 2.2, lateral, 8.4, 0.32, 4.8, '#68737a', GROUND_DRIVE_Y + 1.55, 'airportGroundService', -Math.PI / 2);
+  }
+
+  for (const forward of [-635, -574, -316, -178, 28, 180, 348, 496, 790, 1090]) {
+    addAirportCone(data, bounds, `airport-apron-cone-${forward}`, forward, AIRPORT_TERMINAL_SIDE * 560);
+  }
+}
+
+function addAirportServiceVehicle(data, bounds, id, forward, lateral, rotationOffset, color, length, depth) {
+  addAirportPlanBox(data, bounds, `${id}-body`, forward, lateral, length, 1.75, depth, color, GROUND_DRIVE_Y + 0.12, 'airportGroundService', rotationOffset);
+  addAirportPlanBox(data, bounds, `${id}-cab`, forward + length * 0.32, lateral, length * 0.28, 1.95, depth * 0.84, '#e7edf1', GROUND_DRIVE_Y + 0.28, 'airportGroundService', rotationOffset);
+  addAirportPlanBox(data, bounds, `${id}-equipment`, forward - length * 0.18, lateral, length * 0.42, 0.8, depth * 0.68, '#4f5c61', GROUND_DRIVE_Y + 1.62, 'airportGroundService', rotationOffset);
+
+  for (const side of [-1, 1]) {
+    for (const axle of [-0.3, 0.34]) {
+      addAirportPlanBox(
+        data,
+        bounds,
+        `${id}-wheel-${side}-${axle}`,
+        forward + length * axle,
+        lateral + side * depth * 0.48,
+        1.6,
+        0.72,
+        0.72,
+        '#151a1c',
+        GROUND_DRIVE_Y + 0.05,
+        'airportGroundService',
+        rotationOffset
+      );
+    }
+  }
+}
+
+function addAirportCone(data, bounds, id, forward, lateral) {
+  addAirportPlanBox(data, bounds, `${id}-base`, forward, lateral, 1.0, 0.18, 1.0, '#f2f0dc', GROUND_DRIVE_Y + 0.05, 'airportCone');
+  addAirportPlanBox(data, bounds, `${id}-body`, forward, lateral, 0.62, 0.9, 0.62, '#e36d5c', GROUND_DRIVE_Y + 0.2, 'airportCone');
+}
+
+function addAirportAirfieldLights(data, bounds) {
+  const runwayHalfLength = getAirportPlanPose().length / 2;
+
+  for (let forward = -1220; forward <= 1220; forward += 130) {
+    for (const lateral of [-44, 44]) {
+      const isNearEnd = Math.abs(forward) > runwayHalfLength - 310;
+      addAirportLightAtPlan(data, bounds, `airport-runway-edge-light-${forward}-${lateral}`, forward, lateral, isNearEnd ? '#f2d486' : '#f7f0c9', 'runway', 0.85, 0.42);
+    }
+  }
+
+  for (const [label, forward, redSide] of [['31', -1285, -1], ['13', 1285, 1]]) {
+    for (const lateral of [-27, -15, -3, 9, 21, 33]) {
+      addAirportLightAtPlan(
+        data,
+        bounds,
+        `airport-threshold-light-${label}-${lateral}`,
+        forward,
+        lateral,
+        redSide < 0 ? '#e36d5c' : '#9fd08c',
+        'threshold',
+        0.9,
+        0.5
+      );
+    }
+  }
+
+  for (let forward = -1130; forward <= 1130; forward += 150) {
+    addAirportLightAtPlan(data, bounds, `airport-taxiway-blue-light-left-${forward}`, forward, AIRPORT_TERMINAL_SIDE * 251, '#75b7d8', 'taxiway', 0.72, 0.36);
+    addAirportLightAtPlan(data, bounds, `airport-taxiway-blue-light-right-${forward}`, forward, AIRPORT_TERMINAL_SIDE * 209, '#75b7d8', 'taxiway', 0.72, 0.36);
+  }
+
+  for (const { id, forward } of AIRPORT_GATE_STANDS) {
+    addAirportLightAtPlan(data, bounds, `airport-gate-stopbar-light-${id}-left`, forward - 17, AIRPORT_TERMINAL_SIDE * 455, '#e36d5c', 'stopbar', 0.72, 0.36);
+    addAirportLightAtPlan(data, bounds, `airport-gate-stopbar-light-${id}-right`, forward + 17, AIRPORT_TERMINAL_SIDE * 455, '#e36d5c', 'stopbar', 0.72, 0.36);
+  }
+
+  for (const [id, x, z, rotationY] of [
+    ['airport-apron-flood-west', -6225, 5350, Math.PI / 2],
+    ['airport-apron-flood-center', -5860, 5485, Math.PI / 2],
+    ['airport-apron-flood-east', -5485, 5290, Math.PI / 2],
+    ['airport-parking-light-west', -6190, 4870, 0],
+    ['airport-parking-light-east', -5550, 4870, 0],
+    ['airport-entrance-light', -5520, 4745, -Math.PI / 3]
+  ]) {
+    addAirportStreetLight(data, bounds, id, x, z, rotationY);
+  }
+}
+
+function addAirportLightAtPlan(data, bounds, id, forward, lateral, color, lightKind, size = 0.8, height = 0.38, blink = false, phase = 0) {
+  const point = getAirportPlanPoint(forward, lateral);
+  addAirportLightAtWorld(data, bounds, id, point.x, point.z, 0.12, color, lightKind, size, height, blink, phase);
+}
+
+function addAirportLightAtWorld(data, bounds, id, x, z, baseY, color, lightKind, size = 0.8, height = 0.38, blink = false, phase = 0) {
+  if (!isInsideChunk(x, z, bounds)) return;
+
+  data.trafficObstacles.push(createTrafficObstacle(
+    id,
+    x,
+    z,
+    baseY,
+    size,
+    height,
+    size,
+    color,
+    0,
+    {
+      type: 'airportLight',
+      lightKind,
+      blink,
+      phase
+    }
+  ));
+}
+
+function addAirportStreetLight(data, bounds, id, x, z, rotationY = 0) {
+  if (!isInsideChunk(x, z, bounds)) return;
+
+  data.streetLights.push({
+    id,
+    position: [x, 0, z],
+    rotationY
+  });
+  data.streetLightColliders.push(createBoxCollider(`${id}-collider`, 'streetLight', x, z, 1.1, 1.1));
+}
+
+function addAirportTowerDetails(data, bounds) {
+  addTransportRectObstacle(data, 'airport-control-tower-glass-cab', -6080, 5090, 42, 13.5, 42, '#c4e4ea', bounds, {
+    baseY: 82,
+    type: 'airportTowerGlassCab'
+  });
+  addTransportRectObstacle(data, 'airport-control-tower-roof', -6080, 5090, 48, 2.6, 48, '#4f5c61', bounds, {
+    baseY: 95.5,
+    type: 'airportTowerRoof'
+  });
+  addTransportRectObstacle(data, 'airport-control-tower-antenna-mast', -6080, 5090, 1.4, 13.5, 1.4, '#2d3438', bounds, {
+    baseY: 98,
+    type: 'airportAntenna'
+  });
+  addTransportRectObstacle(data, 'airport-control-tower-radar-boom', -6080, 5090, 28, 0.72, 1.0, '#d7e0e4', bounds, {
+    baseY: 103.8,
+    rotationY: Math.PI / 7,
+    type: 'airportRadar'
+  });
+  addTransportRectObstacle(data, 'airport-control-tower-radar-dish', -6068, 5084, 7.2, 5.0, 0.8, '#d7e0e4', bounds, {
+    baseY: 99.5,
+    rotationY: Math.PI / 7,
+    type: 'airportRadar'
+  });
+  addAirportLightAtWorld(data, bounds, 'airport-control-tower-red-beacon', -6080, 5090, 111.8, '#f0503f', 'beacon', 1.6, 1.2, true, 0.4);
+  addTransportRoadSign(data, bounds, {
+    id: 'airport-control-tower-security-sign',
+    text: 'CONTROL\nTOWER',
+    position: [-6118, 3.5, 5052],
+    rotation: [0, Math.PI / 5, 0],
+    scale: [6.6, 2.0, 0.22],
+    color: '#203b49'
+  });
+}
+
+function addAirportHangarDetails(data, bounds) {
+  for (const [id, x, z, width, yaw] of [
+    ['airport-maintenance-hangar-west', -6750, 5155, 250, 0],
+    ['airport-maintenance-hangar-east', -5300, 5980, 230, 0]
+  ]) {
+    addTransportRectObstacle(data, `${id}-main-door`, x, z - 72, width * 0.68, 18, 3.2, '#2d3438', bounds, {
+      baseY: 1.5,
+      rotationY: yaw,
+      type: 'airportHangarDoor'
+    });
+    addTransportRectObstacle(data, `${id}-door-stripes`, x, z - 74, width * 0.58, 1.0, 3.4, '#f2d486', bounds, {
+      baseY: 14.2,
+      rotationY: yaw,
+      type: 'airportHangarDoor'
+    });
+    addTransportRectObstacle(data, `${id}-roof-arch-front`, x, z - 38, width * 0.92, 3.6, 7.2, '#cfd4ca', bounds, {
+      baseY: 31.0,
+      rotationY: yaw,
+      type: 'airportHangarRoof'
+    });
+    addTransportRectObstacle(data, `${id}-roof-arch-rear`, x, z + 38, width * 0.92, 3.6, 7.2, '#cfd4ca', bounds, {
+      baseY: 31.0,
+      rotationY: yaw,
+      type: 'airportHangarRoof'
+    });
+  }
+
+  addAirportServiceVehicle(data, bounds, 'airport-maintenance-pickup', -1030, AIRPORT_TERMINAL_SIDE * 525, -Math.PI / 2, '#e36d5c', 9.5, 4.4);
+  addAirportServiceVehicle(data, bounds, 'airport-cargo-loader', 1045, AIRPORT_TERMINAL_SIDE * 535, -Math.PI / 2, '#7898a8', 12, 5.2);
+}
+
+function addAirportEntranceDetails(data, bounds) {
+  addTransportRectObstacle(data, 'airport-security-gatehouse', -5488, 4792, 18, 8.5, 16, '#cfd4ca', bounds, {
+    baseY: GROUND_DRIVE_Y + 0.04,
+    type: 'airportGatehouse'
+  });
+  addTransportRectObstacle(data, 'airport-security-canopy', -5520, 4798, 92, 2.8, 18, '#4f5c61', bounds, {
+    baseY: 7.8,
+    type: 'airportGatehouse'
+  });
+  addTransportRectObstacle(data, 'airport-security-boom-left', -5562, 4795, 34, 0.52, 0.42, '#e36d5c', bounds, {
+    baseY: 1.8,
+    rotationY: Math.PI / 18,
+    type: 'airportBarrier'
+  });
+  addTransportRectObstacle(data, 'airport-security-boom-right', -5515, 4786, 31, 0.52, 0.42, '#e36d5c', bounds, {
+    baseY: 1.8,
+    rotationY: -Math.PI / 16,
+    type: 'airportBarrier'
+  });
+  addTransportRoadSign(data, bounds, {
+    id: 'airport-entry-direction-sign',
+    text: 'AIRPORT\nENTRANCE',
+    position: [-5520, 5.2, 4748],
+    rotation: [0, -Math.PI / 6, 0],
+    scale: [10.2, 2.8, 0.24],
+    color: '#1d2b24'
+  });
+  addTransportRoadSign(data, bounds, {
+    id: 'airport-restricted-area-sign',
+    text: 'RESTRICTED\nAREA',
+    position: [-5695, 3.2, 4888],
+    rotation: [0, 0, 0],
+    scale: [7.8, 2.3, 0.22],
+    color: '#f2d486'
+  });
+  addTransportRoadSign(data, bounds, {
+    id: 'airport-authorized-sign',
+    text: 'AUTHORIZED\nVEHICLES',
+    position: [-5485, 3.0, 5034],
+    rotation: [0, Math.PI / 2, 0],
+    scale: [7.8, 2.3, 0.22],
+    color: '#f2d486'
+  });
+
+  for (const [id, forward, lateral] of [
+    ['airport-windsock-pole', -1160, 185],
+    ['airport-windsock-sock-red', -1156, 192],
+    ['airport-windsock-sock-white', -1150, 196]
+  ]) {
+    const isPole = id.endsWith('pole');
+    addAirportPlanBox(
+      data,
+      bounds,
+      id,
+      forward,
+      lateral,
+      isPole ? 0.8 : 8.8,
+      isPole ? 9.2 : 1.3,
+      isPole ? 0.8 : 2.0,
+      isPole ? '#2d3438' : (id.endsWith('red') ? '#e36d5c' : '#f2f0dc'),
+      isPole ? GROUND_DRIVE_Y + 0.08 : GROUND_DRIVE_Y + 7.7,
+      'airportWindsock',
+      -0.35
+    );
+  }
 }
 
 function addTrainStationHub(data, bounds, chunkX, chunkZ) {
@@ -9098,11 +11591,41 @@ function addTransportSafeSpawn(data, bounds, chunkX, chunkZ, id, spawn, source) 
 function addTransportAircraft(data, bounds, id, x, z, rotationY, color) {
   if (!isInsideChunk(x, z, bounds)) return;
 
-  data.trafficObstacles.push(
-    createTrafficObstacle(`${id}-body`, x, z, 0.08, 42, 4.6, 6.2, color, rotationY, { type: 'aircraft' }),
-    createTrafficObstacle(`${id}-wing`, x, z, 0.16, 15, 1.2, 38, color, rotationY, { type: 'aircraft' }),
-    createTrafficObstacle(`${id}-tail`, x - Math.sin(rotationY) * 18, z - Math.cos(rotationY) * 18, 1.2, 8, 7.5, 4.4, color, rotationY, { type: 'aircraft' })
-  );
+  const fuselageColor = '#f4f7f8';
+  const undersideColor = '#d7e0e4';
+  const trimColor = '#1e4764';
+  const cockpitColor = '#172431';
+  const liveryColor = color === '#e7edf1' ? '#2f72b8' : color;
+  const addPart = (partId, forward, lateral, baseY, width, height, depth, partColor) => {
+    const point = localOffsetToWorld([x, baseY + height / 2, z], rotationY, forward, 0, lateral);
+    data.trafficObstacles.push(createTrafficObstacle(
+      `${id}-${partId}`,
+      point[0],
+      point[2],
+      baseY,
+      width,
+      height,
+      depth,
+      partColor,
+      rotationY,
+      { type: 'aircraft' }
+    ));
+  };
+
+  addPart('fuselage', 0, 0, 0.58, 54, 5.4, 6.4, fuselageColor);
+  addPart('nose', 29.4, 0, 0.82, 7.2, 4.6, 5.2, fuselageColor);
+  addPart('tail-cone', -29.4, 0, 0.92, 6.8, 4.6, 4.8, fuselageColor);
+  addPart('window-band-left', 3, -3.35, 4.08, 38, 0.48, 0.18, trimColor);
+  addPart('window-band-right', 3, 3.35, 4.08, 38, 0.48, 0.18, trimColor);
+  addPart('cockpit-window', 32.1, 0, 4.42, 2.2, 0.62, 4.1, cockpitColor);
+  addPart('main-wing', -1.5, 0, 1.98, 14.2, 0.86, 45, fuselageColor);
+  addPart('left-engine', -3.8, -12.6, 0.82, 5.4, 2.25, 3.4, undersideColor);
+  addPart('right-engine', -3.8, 12.6, 0.82, 5.4, 2.25, 3.4, undersideColor);
+  addPart('left-winglet', -2.7, -22.8, 2.08, 1.1, 2.6, 1.4, liveryColor);
+  addPart('right-winglet', -2.7, 22.8, 2.08, 1.1, 2.6, 1.4, liveryColor);
+  addPart('horizontal-tail', -25.6, 0, 4.28, 8.4, 0.56, 18, fuselageColor);
+  addPart('vertical-tail', -28.2, 0, 4.52, 7.2, 8.4, 1.15, liveryColor);
+  addPart('tail-logo-panel', -30.3, 0, 8.9, 3.6, 2.5, 1.24, '#ffffff');
 }
 
 function addTransportRectObstacle(data, id, centerX, centerZ, width, height, depth, color, bounds, options = {}) {
@@ -9217,6 +11740,49 @@ function addTransportOffsetSegmentObstacle(
     color,
     baseY,
     options
+  );
+}
+
+function addTransportSlopedOffsetSegmentObstacle(
+  data,
+  bounds,
+  id,
+  start,
+  end,
+  lateral,
+  width,
+  thickness,
+  color,
+  startY,
+  endY,
+  options = {}
+) {
+  const tangent = normalizeVector({
+    x: end.x - start.x,
+    z: end.z - start.z
+  });
+  const normal = { x: -tangent.z, z: tangent.x };
+  const shiftedStart = {
+    x: start.x + normal.x * lateral,
+    z: start.z + normal.z * lateral
+  };
+  const shiftedEnd = {
+    x: end.x + normal.x * lateral,
+    z: end.z + normal.z * lateral
+  };
+
+  addTransportSlopedObstacle(
+    data,
+    bounds,
+    id,
+    shiftedStart,
+    shiftedEnd,
+    startY,
+    endY,
+    width,
+    thickness,
+    color,
+    options.type ?? 'transportDetail'
   );
 }
 
@@ -9483,7 +12049,10 @@ function createTrafficObstacle(id, x, z, baseY, width, height, depth, color, rot
     scale: [width, height, depth],
     colliderMinY: baseY,
     colliderMaxY: baseY + height,
-    type: options.type ?? 'trafficObstacle'
+    type: options.type ?? 'trafficObstacle',
+    lightKind: options.lightKind ?? null,
+    blink: Boolean(options.blink),
+    phase: options.phase ?? 0
   };
 }
 
@@ -9508,11 +12077,16 @@ function createTrafficVehicle(id, startX, startZ, endX, endZ, baseY, width, heig
     loopMode: options.loopMode ?? 'loop',
     metroCycleSeconds: options.metroCycleSeconds ?? null,
     metroDwellSeconds: options.metroDwellSeconds ?? null,
+    metroLoop: Boolean(options.metroLoop),
     metroOneWay: Boolean(options.metroOneWay),
+    metroReversibleEnds: Boolean(options.metroReversibleEnds),
+    metroReverseServiceRanges: options.metroReverseServiceRanges ?? null,
     metroStops: options.metroStops ?? null,
     metroTerminalDwellSeconds: options.metroTerminalDwellSeconds ?? null,
     metroTerminalMargin: options.metroTerminalMargin ?? 0,
+    metroTerminalStops: options.metroTerminalStops ?? null,
     pathKey: options.pathKey ?? getTrafficPathKey(path),
+    preservePathYaw: Boolean(options.preservePathYaw),
     renderBounds: options.renderBounds ?? null,
     roadKind: options.roadKind ?? null,
     roadType: options.roadType ?? null,
@@ -10607,6 +13181,11 @@ function createDriveSurfaces(roads, roundabouts) {
   const surfaces = [];
 
   for (const road of roads) {
+    if (Array.isArray(road.driveSurfaceSlices)) {
+      surfaces.push(...road.driveSurfaceSlices);
+      continue;
+    }
+
     if (road.surface) {
       surfaces.push(road.surface);
       continue;
@@ -10916,11 +13495,64 @@ function addSegmentedFastRoadTunnelCutouts(data, id, start, end, width, chunkBou
 function addFastRoadRectTunnelEnvelope(data, bounds, id, start, end, width, startY, endY) {
   const wallThickness = FAST_ROAD_TUNNEL_BOX_WALL_THICKNESS;
   const length = Math.max(Math.hypot(end.x - start.x, end.z - start.z), 0.0001);
-  const portalInsetRatio = clamp(FAST_ROAD_TUNNEL_ENVELOPE_PORTAL_INSET / length, 0.18, 0.42);
+  const portalInsetRatio = clamp(FAST_ROAD_TUNNEL_ENVELOPE_PORTAL_INSET / length, 0.045, 0.24);
   const enteringFromGround = startY >= GROUND_DRIVE_Y - 0.7 && endY < startY - 1.5;
   const exitingToGround = endY >= GROUND_DRIVE_Y - 0.7 && startY < endY - 1.5;
-  const envelopeStartT = enteringFromGround ? portalInsetRatio : 0;
-  const envelopeEndT = exitingToGround ? 1 - portalInsetRatio : 1;
+  const ceilingThresholdY = GROUND_DRIVE_Y - FAST_ROAD_TUNNEL_BOX_CLEARANCE - 0.28;
+  const ceilingStartT = enteringFromGround
+    ? Math.max(portalInsetRatio, getFastRoadRampThresholdT(startY, endY, ceilingThresholdY))
+    : 0;
+  const ceilingEndT = exitingToGround
+    ? Math.min(1 - portalInsetRatio, getFastRoadRampThresholdT(startY, endY, ceilingThresholdY))
+    : 1;
+  const floorClip = clipLineToBounds(start, end, bounds, width / 2 + wallThickness + 1.8);
+  if (floorClip) {
+    const floorStartY = lerp(startY, endY, floorClip.t0);
+    const floorEndY = lerp(startY, endY, floorClip.t1);
+
+    data.trafficObstacles.push(createSlopedTrafficObstacle(
+      `${id}-floor-fill`,
+      floorClip.start,
+      floorClip.end,
+      floorStartY - 0.11,
+      floorEndY - 0.11,
+      width + wallThickness * 2.4 + 2.8,
+      0.09,
+      '#3f494d',
+      'transportUnderpassTrenchFloor'
+    ));
+  }
+
+  if (enteringFromGround && ceilingStartT > 0.03) {
+    addFastRoadOpenCutSkirtWalls(
+      data,
+      bounds,
+      `${id}-open-cut-entry`,
+      start,
+      lerpPoint(start, end, ceilingStartT),
+      startY,
+      lerp(startY, endY, ceilingStartT),
+      width
+    );
+  }
+
+  if (exitingToGround && ceilingEndT < 0.97) {
+    addFastRoadOpenCutSkirtWalls(
+      data,
+      bounds,
+      `${id}-open-cut-exit`,
+      lerpPoint(start, end, ceilingEndT),
+      end,
+      lerp(startY, endY, ceilingEndT),
+      endY,
+      width
+    );
+  }
+
+  if (ceilingEndT - ceilingStartT <= 0.025) return;
+
+  const envelopeStartT = ceilingStartT;
+  const envelopeEndT = ceilingEndT;
   const envelopeStart = lerpPoint(start, end, envelopeStartT);
   const envelopeEnd = lerpPoint(start, end, envelopeEndT);
   const envelopeStartY = lerp(startY, endY, envelopeStartT);
@@ -10980,6 +13612,61 @@ function addFastRoadRectTunnelEnvelope(data, bounds, id, start, end, width, star
       Math.min(wallStartY, wallEndY),
       Math.max(wallStartY, wallEndY) + wallHeight + 0.6
     ));
+  }
+}
+
+function getFastRoadRampThresholdT(startY, endY, thresholdY) {
+  const delta = endY - startY;
+  if (Math.abs(delta) <= 0.0001) return startY <= thresholdY ? 0 : 1;
+  return clamp((thresholdY - startY) / delta, 0, 1);
+}
+
+function addFastRoadOpenCutSkirtWalls(data, bounds, id, start, end, startY, endY, width) {
+  const length = Math.max(Math.hypot(end.x - start.x, end.z - start.z), 0.0001);
+  const segmentCount = Math.min(8, Math.max(1, Math.ceil(length / 58)));
+  const tangent = normalizeVector({
+    x: end.x - start.x,
+    z: end.z - start.z
+  });
+  const normal = { x: -tangent.z, z: tangent.x };
+  const lateralOffset = width / 2 + FAST_ROAD_RAMP_CUTOUT_EXTRA_WIDTH / 2 + 0.9;
+  const wallThickness = 1.18;
+
+  for (let index = 0; index < segmentCount; index += 1) {
+    const t0 = index / segmentCount;
+    const t1 = (index + 1) / segmentCount;
+    const midT = (t0 + t1) / 2;
+    const roadY = lerp(startY, endY, midT);
+    if (roadY > GROUND_DRIVE_Y - 0.34) continue;
+
+    const sectionStart = lerpPoint(start, end, t0);
+    const sectionEnd = lerpPoint(start, end, t1);
+    const baseY = roadY - 0.18;
+    const topY = Math.min(GROUND_DRIVE_Y + 0.32, roadY + 3.1);
+    const height = Math.max(0, topY - baseY);
+    if (height < 0.55) continue;
+
+    for (const side of [-1, 1]) {
+      const offset = side * lateralOffset;
+      addTransportSegmentObstacle(
+        data,
+        bounds,
+        `${id}-skirt-${index}-${side > 0 ? 'right' : 'left'}`,
+        {
+          x: sectionStart.x + normal.x * offset,
+          z: sectionStart.z + normal.z * offset
+        },
+        {
+          x: sectionEnd.x + normal.x * offset,
+          z: sectionEnd.z + normal.z * offset
+        },
+        wallThickness,
+        height,
+        '#536068',
+        baseY,
+        { type: 'transportUnderpassRetainingWall' }
+      );
+    }
   }
 }
 
@@ -11070,7 +13757,7 @@ function createSlopedVerticalWallObstacle(id, start, end, startY, endY, height, 
   };
 }
 
-function addFastRoadPortalClearanceCutout(data, id, point, size, bounds = null) {
+function addFastRoadPortalClearanceCutout(data, id, point, size, bounds = null, options = {}) {
   if (bounds && !isBoxOverlappingChunk(point.x, point.z, size, size, bounds, 4)) return;
 
   data.groundCutouts.push({
@@ -11078,7 +13765,8 @@ function addFastRoadPortalClearanceCutout(data, id, point, size, bounds = null) 
     minX: point.x - size / 2,
     maxX: point.x + size / 2,
     minZ: point.z - size / 2,
-    maxZ: point.z + size / 2
+    maxZ: point.z + size / 2,
+    skirtWalls: options.skirtWalls ?? true
   });
 }
 
@@ -11886,19 +14574,34 @@ function getOffsetPointAlongSegment(start, tangent, normal, distance, offset) {
   };
 }
 
+function getRegularInteriorDistances(length, spacing, inset) {
+  if (!Number.isFinite(length) || length <= 0) return [];
+
+  const safeInset = Math.min(Math.max(0, inset), length / 2);
+  const span = Math.max(0, length - safeInset * 2);
+  if (span <= 0.001) return [length / 2];
+
+  const count = Math.max(2, Math.ceil(span / Math.max(1, spacing)) + 1);
+  const distances = [];
+
+  for (let index = 0; index < count; index += 1) {
+    distances.push(lerp(safeInset, length - safeInset, index / Math.max(1, count - 1)));
+  }
+
+  return distances;
+}
+
 function addExpresswaySupports(data, road, bounds, groundClearanceRoads) {
   const start = { x: road.startX, z: road.startZ };
   const end = { x: road.endX, z: road.endZ };
   const length = Math.max(Math.hypot(end.x - start.x, end.z - start.z), 0.0001);
   const tangent = normalizeVector({ x: end.x - start.x, z: end.z - start.z });
   const normal = { x: -tangent.z, z: tangent.x };
-  const supportCount = Math.max(1, Math.floor(length / EXPRESSWAY_SUPPORT_SPACING));
+  const supportDistances = getRegularInteriorDistances(length, EXPRESSWAY_SUPPORT_SPACING, 28);
   const lateralOffset = EXPRESSWAY_WIDTH / 2 - 4.2;
   const height = Math.max(1.2, getRoadVisualY(road) - 0.2);
 
-  for (let index = 1; index <= supportCount; index += 1) {
-    const distance = Math.min(length - 28, index * EXPRESSWAY_SUPPORT_SPACING);
-    if (distance <= 28) continue;
+  for (const [index, distance] of supportDistances.entries()) {
     const center = {
       x: start.x + tangent.x * distance,
       z: start.z + tangent.z * distance
@@ -12346,6 +15049,8 @@ function createRoadSurface(id, kind, centerX, centerZ, width, depth, options) {
     side: options.side,
     marked: options.marked,
     roadType: options.roadType,
+    trafficDisabled: options.trafficDisabled ?? false,
+    trafficPathPoints: options.trafficPathPoints ?? null,
     position: [centerX, getRoadY(options.roadType, kind), centerZ],
     scale: [safeWidth, safeDepth],
     centerX,
@@ -12599,7 +15304,12 @@ function generateLaneMarks(roads) {
   const laneMarks = [];
   const transportUnderpassRoads = roads.filter(isTransportUnderpassRoad);
 
-  for (const road of roads) {
+  for (const sourceRoad of roads) {
+    const markRoads = Array.isArray(sourceRoad.laneMarkSlices)
+      ? sourceRoad.laneMarkSlices
+      : [sourceRoad];
+
+    for (const road of markRoads) {
     if (!road.marked && !shouldPaintUnmarkedRoadPatch(road) && !shouldPaintUnmarkedRoadStripe(road)) continue;
     if (road.roadType === 'parking') continue;
 
@@ -12706,9 +15416,11 @@ function generateLaneMarks(roads) {
 
       addRoadEdgeLaneMarks(laneMarks, road);
     }
+    }
   }
 
   filterLaneMarksAroundSurfaceTunnelAccesses(laneMarks, roads);
+  filterLaneMarksAroundFastRoadTunnelOpenings(laneMarks, roads);
   return laneMarks;
 }
 
@@ -12718,11 +15430,33 @@ function filterLaneMarksAroundSurfaceTunnelAccesses(laneMarks, roads) {
 
   for (let index = laneMarks.length - 1; index >= 0; index -= 1) {
     const mark = laneMarks[index];
-    if (String(mark.id ?? '').includes('surface-avenue-tunnel-access')) continue;
+    const markId = String(mark.id ?? '');
+    if (
+      markId.includes('surface-avenue-tunnel-access') ||
+      markId.includes('surface-avenue-lane') ||
+      markId.includes('surface-avenue-edge')
+    ) {
+      continue;
+    }
 
     const [x, y = GROUND_DRIVE_Y, z] = mark.position ?? [];
     if (y > GROUND_DRIVE_Y + 0.72) continue;
     if (!isPointInSurfaceTunnelAccessOpening(x, z, accessRoads, 8.5)) continue;
+
+    laneMarks.splice(index, 1);
+  }
+}
+
+function filterLaneMarksAroundFastRoadTunnelOpenings(laneMarks, roads) {
+  const openingRoads = roads.filter(isFastRoadTunnelOpeningRoad);
+  if (openingRoads.length === 0) return;
+
+  for (let index = laneMarks.length - 1; index >= 0; index -= 1) {
+    const mark = laneMarks[index];
+    const [x, y = GROUND_DRIVE_Y, z] = mark.position ?? [];
+    if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
+    if (y < GROUND_DRIVE_Y - 0.55 || y > GROUND_DRIVE_Y + 0.82) continue;
+    if (!isPointInFastRoadTunnelOpening(x, z, openingRoads, 13)) continue;
 
     laneMarks.splice(index, 1);
   }
@@ -12778,6 +15512,73 @@ function addRoadPatchLaneMarks(laneMarks, road) {
       scale: [markWidth, 0.036, verticalLength]
     }
   );
+
+  if (shouldAddRoadPatchBoundaryMarks(road)) {
+    addRoadPatchBoundaryMarks(laneMarks, road, {
+      centerX,
+      centerZ,
+      depth,
+      horizontalLength,
+      markColor,
+      verticalLength,
+      width,
+      y: y + 0.004
+    });
+  }
+}
+
+function shouldAddRoadPatchBoundaryMarks(road) {
+  if (road?.kind === 'road-edge-seam') return false;
+  if (road?.roadType === ROAD_TYPES.ramp) return false;
+  if (road?.roadType === ROAD_TYPES.parking) return false;
+  return road?.kind === 'intersection' ||
+    road?.axis === 'center' ||
+    road?.axis === 'joint';
+}
+
+function addRoadPatchBoundaryMarks(laneMarks, road, layout) {
+  const edgeInset = clamp(Math.min(layout.width, layout.depth) * 0.18, 2.4, 5.8);
+  const lineWidth = isWideLaneMarkRoad(road.roadType) ? 0.18 : 0.14;
+  const xOffset = Math.max(0, layout.width / 2 - edgeInset);
+  const zOffset = Math.max(0, layout.depth / 2 - edgeInset);
+
+  if (layout.horizontalLength > 4 && zOffset > 1) {
+    laneMarks.push(
+      {
+        id: `patch-boundary-north-${road.id}`,
+        color: layout.markColor,
+        position: [layout.centerX, layout.y, layout.centerZ - zOffset],
+        roadType: road.roadType,
+        scale: [layout.horizontalLength, 0.036, lineWidth]
+      },
+      {
+        id: `patch-boundary-south-${road.id}`,
+        color: layout.markColor,
+        position: [layout.centerX, layout.y + 0.001, layout.centerZ + zOffset],
+        roadType: road.roadType,
+        scale: [layout.horizontalLength, 0.036, lineWidth]
+      }
+    );
+  }
+
+  if (layout.verticalLength > 4 && xOffset > 1) {
+    laneMarks.push(
+      {
+        id: `patch-boundary-west-${road.id}`,
+        color: layout.markColor,
+        position: [layout.centerX - xOffset, layout.y + 0.002, layout.centerZ],
+        roadType: road.roadType,
+        scale: [lineWidth, 0.036, layout.verticalLength]
+      },
+      {
+        id: `patch-boundary-east-${road.id}`,
+        color: layout.markColor,
+        position: [layout.centerX + xOffset, layout.y + 0.003, layout.centerZ],
+        roadType: road.roadType,
+        scale: [lineWidth, 0.036, layout.verticalLength]
+      }
+    );
+  }
 }
 
 function isUpperTransportOverpassRoad(road) {
@@ -12794,7 +15595,7 @@ function isSurfaceTransportAvenueRoad(road) {
 
 function addTransportOverpassLaneMarks(laneMarks, road) {
   addContinuousCenterLaneMark(laneMarks, road, 'yellow');
-  addRoadEdgeLaneMarks(laneMarks, road, { force: true });
+  addRoadEdgeLaneMarks(laneMarks, road);
 }
 
 function shouldUseContinuousCenterLaneMark(road) {
@@ -13139,7 +15940,12 @@ function generateRoadDetails(roads) {
     trafficSignals: []
   };
 
-  for (const road of roads) {
+  for (const sourceRoad of roads) {
+    const detailRoads = Array.isArray(sourceRoad.detailSlices)
+      ? sourceRoad.detailSlices
+      : [sourceRoad];
+
+    for (const road of detailRoads) {
     if (!shouldAddGroundRoadDetail(road)) continue;
 
     addSidewalkDetails(details, road);
@@ -13147,6 +15953,7 @@ function generateRoadDetails(roads) {
     addMedianBarrierDetails(details, road);
     addIntersectionPaintDetails(details, road);
     addTrafficSignalDetails(details, road);
+    }
   }
 
   addSurfaceAvenueTrafficSignalDetails(details, roads);
@@ -13154,6 +15961,7 @@ function generateRoadDetails(roads) {
   filterRoadIntrudingBarrierDetails(details, roads);
   filterRoadIntrudingSidewalkDetails(details, roads);
   filterRoadDetailsAroundSurfaceTunnelAccesses(details, roads);
+  filterRoadDetailsAroundFastRoadTunnelOpenings(details, roads);
   filterRoadIntrudingTrafficSignals(details, roads);
 
   return details;
@@ -13372,6 +16180,19 @@ function filterRoadDetailsAroundSurfaceTunnelAccesses(details, roads) {
   filterPointRoadDetailListAroundSurfaceTunnelAccesses(details.stopBars, accessRoads, 7.5);
 }
 
+function filterRoadDetailsAroundFastRoadTunnelOpenings(details, roads) {
+  const openingRoads = roads.filter(isFastRoadTunnelOpeningRoad);
+  if (openingRoads.length === 0) return;
+
+  details.curbs = splitRoadDetailListAroundFastRoadTunnelOpenings(details.curbs, openingRoads, 10);
+  details.sidewalks = splitRoadDetailListAroundFastRoadTunnelOpenings(details.sidewalks, openingRoads, 20);
+  details.sidewalkRails = splitRoadDetailListAroundFastRoadTunnelOpenings(details.sidewalkRails, openingRoads, 18);
+  details.medianBarriers = splitRoadDetailListAroundFastRoadTunnelOpenings(details.medianBarriers, openingRoads, 11);
+  filterPointRoadDetailListAroundFastRoadTunnelOpenings(details.crosswalks, openingRoads, 11);
+  filterPointRoadDetailListAroundFastRoadTunnelOpenings(details.stopBars, openingRoads, 11);
+  filterPointRoadDetailListAroundFastRoadTunnelOpenings(details.trafficSignals, openingRoads, 14);
+}
+
 function splitRoadDetailListAroundSurfaceTunnelAccesses(details, accessRoads, margin) {
   const next = [];
 
@@ -13415,9 +16236,60 @@ function splitRoadDetailListAroundSurfaceTunnelAccesses(details, accessRoads, ma
   return next;
 }
 
+function splitRoadDetailListAroundFastRoadTunnelOpenings(details, openingRoads, margin) {
+  const next = [];
+
+  for (const detail of details) {
+    const layout = getLinearRoadDetailLayout(detail);
+    if (!layout) {
+      if (!doesRoadDetailTouchFastRoadTunnelOpening(detail, openingRoads, margin)) next.push(detail);
+      continue;
+    }
+
+    const blockedRanges = [];
+
+    for (const openingRoad of openingRoads) {
+      const range = getFastRoadTunnelOpeningBlockRangeOnLinearDetail(layout, openingRoad, margin);
+      if (range) blockedRanges.push(range);
+    }
+
+    if (blockedRanges.length === 0) {
+      next.push(detail);
+      continue;
+    }
+
+    const merged = mergeBlockedRanges(blockedRanges, layout.length);
+    let cursor = 0;
+    let sliceIndex = 0;
+
+    for (const range of merged) {
+      if (range.start - cursor >= 8) {
+        next.push(createLinearDetailSlice(detail, layout, { start: cursor, end: range.start }, sliceIndex));
+        sliceIndex += 1;
+      }
+
+      cursor = Math.max(cursor, range.end);
+    }
+
+    if (layout.length - cursor >= 8) {
+      next.push(createLinearDetailSlice(detail, layout, { start: cursor, end: layout.length }, sliceIndex));
+    }
+  }
+
+  return next;
+}
+
 function filterPointRoadDetailListAroundSurfaceTunnelAccesses(details, accessRoads, margin) {
   for (let index = details.length - 1; index >= 0; index -= 1) {
     if (!doesRoadDetailTouchSurfaceTunnelAccess(details[index], accessRoads, margin)) continue;
+
+    details.splice(index, 1);
+  }
+}
+
+function filterPointRoadDetailListAroundFastRoadTunnelOpenings(details, openingRoads, margin) {
+  for (let index = details.length - 1; index >= 0; index -= 1) {
+    if (!doesRoadDetailTouchFastRoadTunnelOpening(details[index], openingRoads, margin)) continue;
 
     details.splice(index, 1);
   }
@@ -13429,9 +16301,33 @@ function doesRoadDetailTouchSurfaceTunnelAccess(detail, accessRoads, margin = 0)
   ));
 }
 
+function doesRoadDetailTouchFastRoadTunnelOpening(detail, openingRoads, margin = 0) {
+  return getRoadDetailSamplePoints(detail).some((point) => (
+    isPointInFastRoadTunnelOpening(point.x, point.z, openingRoads, margin)
+  ));
+}
+
 function isPointInSurfaceTunnelAccessOpening(x, z, accessRoads, margin = 0) {
   return accessRoads.some((accessRoad) => {
     const opening = getSurfaceTunnelAccessOpeningLine(accessRoad);
+    if (!opening) return false;
+
+    return Boolean(getCircleSegmentOverlap(
+      x,
+      z,
+      0,
+      opening.line.start.x,
+      opening.line.start.z,
+      opening.line.end.x,
+      opening.line.end.z,
+      opening.width / 2 + margin
+    ));
+  });
+}
+
+function isPointInFastRoadTunnelOpening(x, z, openingRoads, margin = 0) {
+  return openingRoads.some((openingRoad) => {
+    const opening = getFastRoadTunnelOpeningLine(openingRoad);
     if (!opening) return false;
 
     return Boolean(getCircleSegmentOverlap(
@@ -13471,6 +16367,68 @@ function getSurfaceTunnelAccessBlockRangeOnLinearDetail(layout, accessRoad, marg
     start: clamp(centerDistance - blockHalfLength, 0, layout.length),
     end: clamp(centerDistance + blockHalfLength, 0, layout.length)
   };
+}
+
+function getFastRoadTunnelOpeningBlockRangeOnLinearDetail(layout, openingRoad, margin = 0) {
+  const opening = getFastRoadTunnelOpeningLine(openingRoad);
+  if (!opening) return null;
+
+  const detailStart = {
+    x: layout.center.x - layout.direction.x * layout.length / 2,
+    z: layout.center.z - layout.direction.z * layout.length / 2
+  };
+  const detailEnd = {
+    x: layout.center.x + layout.direction.x * layout.length / 2,
+    z: layout.center.z + layout.direction.z * layout.length / 2
+  };
+  const closest = getClosestSegmentApproach(detailStart, detailEnd, opening.line.start, opening.line.end);
+  const limit = opening.width / 2 + layout.width / 2 + margin;
+
+  if (!closest || closest.distanceSq > limit * limit) return null;
+
+  const alignment = Math.abs(layout.direction.x * opening.tangent.x + layout.direction.z * opening.tangent.z);
+  if (alignment > 0.82) {
+    const projectedStart = getProjectedDistanceOnLinearDetailLayout(opening.line.start, layout);
+    const projectedEnd = getProjectedDistanceOnLinearDetailLayout(opening.line.end, layout);
+    const lateralLimit = limit + Math.max(8, opening.width * 0.28);
+
+    if (
+      projectedStart.lateralSq <= lateralLimit * lateralLimit ||
+      projectedEnd.lateralSq <= lateralLimit * lateralLimit ||
+      closest.distanceSq <= lateralLimit * lateralLimit
+    ) {
+      const startDistance = clamp(Math.min(projectedStart.distance, projectedEnd.distance), 0, layout.length);
+      const endDistance = clamp(Math.max(projectedStart.distance, projectedEnd.distance), 0, layout.length);
+      const parallelMargin = Math.max(16, opening.width / 2 + layout.width + margin);
+
+      return {
+        start: clamp(startDistance - parallelMargin, 0, layout.length),
+        end: clamp(endDistance + parallelMargin, 0, layout.length)
+      };
+    }
+  }
+
+  const centerDistance = clamp(closest.t, 0, 1) * layout.length;
+  const blockHalfLength = opening.width / 2 + layout.width + margin + 8;
+
+  return {
+    start: clamp(centerDistance - blockHalfLength, 0, layout.length),
+    end: clamp(centerDistance + blockHalfLength, 0, layout.length)
+  };
+}
+
+function getProjectedDistanceOnLinearDetailLayout(point, layout) {
+  const start = {
+    x: layout.center.x - layout.direction.x * layout.length / 2,
+    z: layout.center.z - layout.direction.z * layout.length / 2
+  };
+  const dx = point.x - start.x;
+  const dz = point.z - start.z;
+  const distance = dx * layout.direction.x + dz * layout.direction.z;
+  const distanceSq = dx * dx + dz * dz;
+  const lateralSq = Math.max(0, distanceSq - distance * distance);
+
+  return { distance, lateralSq };
 }
 
 function splitLinearDetailAroundForeignRoads(detail, roads, margin = 0) {
@@ -14080,7 +17038,10 @@ function createRoadDetailCollider(detail, type) {
 }
 
 function filterRoadAirWallColliders(colliders, roads) {
-  return colliders.filter((collider) => !isRoadAirWallCollider(collider, roads));
+  return colliders.filter((collider) => (
+    !isRoadAirWallCollider(collider, roads) &&
+    !isSurfaceTunnelMergeWallCollider(collider, roads)
+  ));
 }
 
 function isRoadAirWallCollider(collider, roads) {
@@ -14102,6 +17063,18 @@ function isPotentialRoadAirWallCollider(collider) {
     collider.type === 'roadCurb' ||
     collider.type === 'highwaySideGuardrail' ||
     collider.type === 'highwayMedianGuardrail';
+}
+
+function isSurfaceTunnelMergeWallCollider(collider, roads) {
+  if (collider.type !== 'tunnelWall') return false;
+  if (String(collider.id ?? '').includes('ramp-wall-retaining')) return false;
+
+  return roads.some((road) => (
+    road?.kind === 'surface-avenue-tunnel-merge' &&
+    !doesColliderBelongToRoad(collider, road) &&
+    doesColliderOverlapRoadHeight(collider, road, 1.05) &&
+    doesColliderTouchRoadSurface(collider, road, 3.2)
+  ));
 }
 
 function isDriveRoadForAirWallClearance(road) {
@@ -14432,11 +17405,7 @@ function getRoadStopPoint(road, inset) {
   };
 }
 
-function addRoadEdgeLaneMarks(laneMarks, road, options = {}) {
-  if (!options.force && (road.roadType === 'local' || road.roadType === ROAD_TYPES.groundRoad)) {
-    return;
-  }
-
+function addRoadEdgeLaneMarks(laneMarks, road) {
   const y = (road.position?.[1] ?? GROUND_DRIVE_Y) + 0.055;
   const roadWidth = road.axis === 'x'
     ? road.depth
@@ -14821,6 +17790,66 @@ function removeBuildingsNearMetroClearance(buildings, colliders, roadColliders) 
     buildings.splice(index, 1);
     colliders.splice(index, 1);
   }
+}
+
+function removeBuildingsNearStructureClearance(buildings, colliders, structureClearanceColliders = []) {
+  if (structureClearanceColliders.length === 0) return;
+
+  for (let index = buildings.length - 1; index >= 0; index -= 1) {
+    const building = buildings[index];
+    if (building?.preserveTransportHub) continue;
+
+    const [x = 0, , z = 0] = building.position ?? [];
+    const [width = 0, , depth = 0] = building.scale ?? [];
+    const box = createLooseBox(x, z, width, depth, 4);
+    const touchesStructure = structureClearanceColliders.some((collider) => doesBoxOverlapCollider(box, collider));
+    if (!touchesStructure) continue;
+
+    buildings.splice(index, 1);
+    colliders.splice(index, 1);
+  }
+}
+
+function removeBuildingsInsideTerrainLandforms(buildings, colliders, terrainLandforms = []) {
+  if (terrainLandforms.length === 0) return;
+
+  for (let index = buildings.length - 1; index >= 0; index -= 1) {
+    const building = buildings[index];
+    const collider = colliders[index] ?? createBuildingCollider(building);
+    if (!collider) continue;
+
+    const overlapsLandform = terrainLandforms.some((landform) => (
+      doesTerrainLandformOverlapCollider(
+        landform,
+        collider,
+        TERRAIN_LANDFORM_BUILDING_CLEARANCE
+      )
+    ));
+    if (!overlapsLandform) continue;
+
+    buildings.splice(index, 1);
+    colliders.splice(index, 1);
+  }
+}
+
+function createBuildingCollider(building) {
+  const [x = 0, , z = 0] = building?.position ?? [];
+  const [width = 0, , depth = 0] = building?.scale ?? [];
+  if (!Number.isFinite(x) || !Number.isFinite(z) || width <= 0 || depth <= 0) return null;
+
+  return createBoxCollider(building.id ?? 'building', 'building', x, z, width, depth);
+}
+
+function doesTerrainLandformOverlapCollider(landform, collider, margin = 0) {
+  const footprint = getTerrainLandformFootprint(landform);
+  if (!footprint) return false;
+
+  return doesCircleOverlapCollider(
+    footprint.x,
+    footprint.z,
+    footprint.radius + margin,
+    collider
+  );
 }
 
 function isBuildingClearOfRoadSurfaces(x, z, width, depth, roads, margin = 0) {
@@ -16243,10 +19272,9 @@ function getDistrictRoadWidth(roadType, districtProfile = DISTRICT_PROFILES.comm
 }
 
 function getRoadY(roadType, kind) {
-  if (roadType === 'highway') return 0.02;
-  if (roadType === 'parking') return 0.012;
-  if (roadType === 'local') return 0.014;
-  return kind === 'intersection' ? 0.017 : 0.016;
+  const baseY = ROAD_RENDER_Y[roadType] ?? 0.046;
+
+  return kind === 'intersection' ? Math.max(baseY, 0.05) : baseY;
 }
 
 function axisForSide(side) {

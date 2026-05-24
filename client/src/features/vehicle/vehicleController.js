@@ -905,7 +905,7 @@ function sampleDriveSurface(position, currentY, driveSurfaces, fallbackY, config
 
     let score = Math.abs(currentY - y);
 
-    if (surface.roadType === 'ramp') {
+    if (surface.roadType === 'ramp' && surface.shape === 'ramp') {
       const rampScore = score;
       if (!rampCandidate || rampScore < rampCandidate.score) {
         rampCandidate = {
@@ -952,6 +952,9 @@ function sampleDriveSurface(position, currentY, driveSurfaces, fallbackY, config
 function shouldPreferRampSurface(rampSurface, bestSurface, currentY, fallbackY) {
   if (!bestSurface?.id) return true;
   if (bestSurface.roadType === 'grass') return true;
+  if (bestSurface.roadType === 'ramp' && bestSurface.shape !== 'ramp') {
+    return Math.abs(currentY - rampSurface.y) <= Math.abs(currentY - bestSurface.y) + 0.8;
+  }
   if (
     currentY >= fallbackY - 0.7 &&
     rampSurface.y < fallbackY - 1.2 &&

@@ -62,6 +62,10 @@ function createRoadSignTexture(text) {
     ? { background: '#f2f0dc', border: '#1b2023', text: '#151a1c' }
     : upperText.includes('HEIGHT')
       ? { background: '#f2d486', border: '#151a1c', text: '#151a1c' }
+      : upperText.includes('RWY') || upperText.includes('RESTRICTED') || upperText.includes('AUTHORIZED')
+        ? { background: '#f2d486', border: '#151a1c', text: '#151a1c' }
+      : upperText.includes('GATE') || upperText.includes('AIRPORT') || upperText.includes('DEPARTURES') || upperText.includes('ARRIVALS') || upperText.includes('PARKING') || upperText.includes('TAXI') || upperText.includes('CONTROL')
+        ? { background: '#203b49', border: '#f2d486', text: '#f7f0c9' }
       : upperText.includes('TUNNEL')
         ? { background: '#203b49', border: '#f2d486', text: '#f7f0c9' }
         : { background: '#1d2b24', border: '#f2d486', text: '#f7f0c9' };

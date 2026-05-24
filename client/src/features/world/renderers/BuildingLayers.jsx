@@ -15,6 +15,8 @@ export function BuildingLayers({ batches, nightMode = false, weatherMode, worldM
           color={getWeatherBuildingColor(group.color, weatherMode, false)}
           instances={batches.buildingsNearByColor[group.key]}
           materialType="standard"
+          receiveShadow
+          castShadow
           roughness={worldMaterials.buildingRoughness}
           metalness={worldMaterials.buildingMetalness}
         />
@@ -26,10 +28,22 @@ export function BuildingLayers({ batches, nightMode = false, weatherMode, worldM
           color={getWeatherBuildingColor(group.color, weatherMode, true)}
           instances={batches.buildingsFarByColor[group.key]}
           materialType="basic"
+          receiveShadow
           roughness={0.9}
           metalness={0}
         />
       ))}
+      <BoxInstances
+        name="BuildingFacadeTrimInstances"
+        color={nightMode ? '#263139' : '#5a666b'}
+        emissive={nightMode ? '#10191f' : '#000000'}
+        emissiveIntensity={nightMode ? 0.12 : 0}
+        instances={batches.buildingFacadeTrims}
+        materialType="standard"
+        receiveShadow
+        roughness={0.5}
+        metalness={0.08}
+      />
       <BoxInstances
         name="BuildingWindowBandInstances"
         color={windowColor}
@@ -37,6 +51,7 @@ export function BuildingLayers({ batches, nightMode = false, weatherMode, worldM
         emissiveIntensity={windowEmissiveIntensity}
         instances={batches.buildingWindowBands}
         materialType="standard"
+        toneMapped={!nightMode}
         roughness={0.32}
         metalness={0.04}
       />
@@ -46,6 +61,7 @@ export function BuildingLayers({ batches, nightMode = false, weatherMode, worldM
         instances={batches.buildingRoofCaps}
         materialType="standard"
         receiveShadow
+        castShadow
         roughness={worldMaterials.roofCap.roughness}
         metalness={worldMaterials.roofCap.metalness}
       />

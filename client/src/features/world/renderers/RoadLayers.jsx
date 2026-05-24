@@ -60,6 +60,33 @@ export function RoadLayers({ batches, worldMaterials }) {
         roughness={worldMaterials.roundaboutIsland.roughness}
       />
       <BoxInstances
+        name="RoadEdgeDirtInstances"
+        color={worldMaterials.roadDirt.color}
+        depthWrite={false}
+        instances={batches.roadEdgeDirt}
+        materialType="basic"
+        opacity={worldMaterials.roadDirt.opacity}
+        transparent
+      />
+      <BoxInstances
+        name="RoadWearMarkInstances"
+        color={worldMaterials.roadWear.color}
+        depthWrite={false}
+        instances={batches.roadWearMarks}
+        materialType="basic"
+        opacity={worldMaterials.roadWear.opacity}
+        transparent
+      />
+      <BoxInstances
+        name="RoadCrackMarkInstances"
+        color={worldMaterials.roadCrack.color}
+        depthWrite={false}
+        instances={batches.roadCrackMarks}
+        materialType="basic"
+        opacity={worldMaterials.roadCrack.opacity}
+        transparent
+      />
+      <BoxInstances
         name="LaneMarkInstances"
         color={worldMaterials.markings.color}
         instances={batches.laneMarks}

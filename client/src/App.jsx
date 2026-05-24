@@ -171,7 +171,10 @@ export default function App() {
   const [transportMission, setTransportMission] = useState(initialTransportMission);
   const [cargoRouteIndex, setCargoRouteIndex] = useState(0);
   const [launchOverlayOpen, setLaunchOverlayOpen] = useState(!initialRaceModeRef.current);
-  const renderQuality = useMemo(() => getRenderQualitySettings(qualityMode), [qualityMode]);
+  const renderQuality = useMemo(
+    () => getRenderQualitySettings(qualityMode, weatherMode),
+    [qualityMode, weatherMode]
+  );
   const weatherPreset = getWeatherPreset(weatherMode);
   const sceneWeather = useMemo(
     () => createSceneWeatherSettings(weatherPreset, nightMode, renderQuality),
@@ -1922,10 +1925,10 @@ function createSceneWeatherSettings(weatherPreset, nightMode, renderQuality) {
   const baseFogFar = nightMode ? renderQuality.fogFar * 0.78 : renderQuality.fogFar;
   const fogNear = nightMode ? weatherPreset.fog.nearNight : weatherPreset.fog.nearDay;
   const fogFar = Math.max(fogNear + 44, baseFogFar * weatherPreset.fog.farMultiplier);
-  const sunBase = nightMode ? 0.68 : 2.05;
-  const fillBase = nightMode ? 0.16 : 0.3;
-  const ambientBase = nightMode ? 0.2 : 0.42;
-  const hemisphereBase = nightMode ? 0.42 : 0.86;
+  const sunBase = nightMode ? 0.78 : 2.28;
+  const fillBase = nightMode ? 0.12 : 0.24;
+  const ambientBase = nightMode ? 0.17 : 0.34;
+  const hemisphereBase = nightMode ? 0.38 : 0.82;
 
   return {
     skyColor: nightMode ? weatherPreset.sky.night : weatherPreset.sky.day,
@@ -1936,16 +1939,19 @@ function createSceneWeatherSettings(weatherPreset, nightMode, renderQuality) {
     hemiGround: nightMode ? weatherPreset.hemiGround.night : weatherPreset.hemiGround.day,
     hemisphereIntensity: hemisphereBase * weatherPreset.ambientMultiplier,
     ambientIntensity: ambientBase * weatherPreset.ambientMultiplier,
-    sunPosition: nightMode ? [-58, 78, -42] : [42, 86, 24],
+    sunPosition: nightMode ? [-58, 78, -42] : [54, 104, 32],
     sunColor: nightMode ? '#c7dcff' : '#fff3d0',
     sunIntensity: sunBase * weatherPreset.sunMultiplier,
     fillColor: nightMode ? '#8fb4dd' : '#d9f4ff',
     fillIntensity: fillBase * weatherPreset.fillMultiplier,
-    exposure: (nightMode ? 1.12 : 1.16) * weatherPreset.exposureMultiplier
+    exposure: (nightMode ? 1.18 : 1.2) * weatherPreset.exposureMultiplier
   };
 }
 
-function getRenderQualitySettings(mode = 'auto') {
+function getRenderQualitySettings(mode = 'auto', weatherMode = 'clear') {
+  const heavyWeather = weatherMode === 'rain' || weatherMode === 'storm';
+  const stormWeather = weatherMode === 'storm';
+
   if (mode === 'low') {
     return {
       antialias: false,
@@ -1956,7 +1962,14 @@ function getRenderQualitySettings(mode = 'auto') {
       powerPreference: 'low-power',
       precision: 'mediump',
       shadowMapSize: 512,
-      shadows: false
+      shadows: false,
+      shadowRadius: 1.2,
+      dynamicLightCount: 0,
+      contactShadows: false,
+      materialDetail: false,
+      precipitationFrameInterval: 2,
+      precipitationScale: 0.48,
+      thermalGuard: false
     };
   }
 
@@ -1966,25 +1979,60 @@ function getRenderQualitySettings(mode = 'auto') {
       cameraFar: 820,
       fogFar: 700,
       loadRadius: 1,
-      maxDpr: 1.12,
+      maxDpr: 1.35,
       powerPreference: 'high-performance',
       precision: 'highp',
-      shadowMapSize: 1024,
-      shadows: false
+      shadowMapSize: 2048,
+      shadows: true,
+      shadowRadius: 2.1,
+      dynamicLightCount: 8,
+      contactShadows: true,
+      materialDetail: true,
+      precipitationFrameInterval: heavyWeather ? 2 : 1,
+      precipitationScale: heavyWeather ? 0.72 : 1,
+      thermalGuard: false
     };
   }
 
   if (mode === 'ultra') {
+    if (heavyWeather) {
+      return {
+        antialias: true,
+        cameraFar: stormWeather ? 720 : 780,
+        fogFar: stormWeather ? 560 : 640,
+        loadRadius: 1,
+        maxDpr: stormWeather ? 1.02 : 1.12,
+        powerPreference: 'default',
+        precision: 'highp',
+        shadowMapSize: 1024,
+        shadows: true,
+        shadowRadius: 1.65,
+        dynamicLightCount: stormWeather ? 2 : 3,
+        contactShadows: true,
+        materialDetail: true,
+        precipitationFrameInterval: stormWeather ? 3 : 2,
+        precipitationScale: stormWeather ? 0.42 : 0.54,
+        thermalGuard: true
+      };
+    }
+
     return {
       antialias: true,
       cameraFar: 960,
       fogFar: 840,
       loadRadius: 1,
-      maxDpr: 1.18,
+      maxDpr: 1.38,
       powerPreference: 'high-performance',
       precision: 'highp',
-      shadowMapSize: 1024,
-      shadows: false
+      shadowMapSize: 2048,
+      shadows: true,
+      shadowRadius: 2.35,
+      dynamicLightCount: 8,
+      contactShadows: true,
+      materialDetail: true,
+      precipitationFrameInterval: 1,
+      precipitationScale: 1,
+      thermalGuard: false
     };
   }
 
@@ -1998,7 +2046,14 @@ function getRenderQualitySettings(mode = 'auto') {
       powerPreference: 'low-power',
       precision: 'mediump',
       shadowMapSize: 512,
-      shadows: false
+      shadows: false,
+      shadowRadius: 1.2,
+      dynamicLightCount: 0,
+      contactShadows: false,
+      materialDetail: false,
+      precipitationFrameInterval: 2,
+      precipitationScale: 0.5,
+      thermalGuard: false
     };
   }
 
@@ -2019,7 +2074,14 @@ function getRenderQualitySettings(mode = 'auto') {
       powerPreference: 'low-power',
       precision: 'mediump',
       shadowMapSize: 512,
-      shadows: false
+      shadows: false,
+      shadowRadius: 1.2,
+      dynamicLightCount: 0,
+      contactShadows: false,
+      materialDetail: false,
+      precipitationFrameInterval: 2,
+      precipitationScale: 0.5,
+      thermalGuard: false
     };
   }
 
@@ -2028,11 +2090,18 @@ function getRenderQualitySettings(mode = 'auto') {
     cameraFar: 860,
     fogFar: 740,
     loadRadius: 1,
-    maxDpr: 1.1,
+    maxDpr: 1.28,
     powerPreference: 'high-performance',
     precision: 'highp',
-    shadowMapSize: 1024,
-    shadows: false
+    shadowMapSize: 2048,
+    shadows: true,
+    shadowRadius: 2,
+    dynamicLightCount: 8,
+    contactShadows: true,
+    materialDetail: true,
+    precipitationFrameInterval: heavyWeather ? 2 : 1,
+    precipitationScale: heavyWeather ? 0.68 : 1,
+    thermalGuard: false
   };
 }
 

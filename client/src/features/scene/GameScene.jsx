@@ -65,11 +65,14 @@ export default function GameScene({
       tabIndex={0}
       onCreated={({ gl }) => {
         gl.domElement.tabIndex = 0;
+        if ('useLegacyLights' in gl) gl.useLegacyLights = false;
+        if ('physicallyCorrectLights' in gl) gl.physicallyCorrectLights = true;
         gl.outputColorSpace = THREE.SRGBColorSpace;
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.toneMappingExposure = sceneExposure;
         gl.shadowMap.enabled = renderQuality.shadows;
         gl.shadowMap.type = THREE.PCFSoftShadowMap;
+        gl.shadowMap.autoUpdate = renderQuality.shadows;
       }}
     >
       <RendererSettings exposure={sceneExposure} />
@@ -83,10 +86,14 @@ export default function GameScene({
         intensity={sceneWeather.sunIntensity * tunnelLightFloor}
         color={sceneWeather.sunColor}
         shadow-bias={-0.00015}
+        shadow-normalBias={0.024}
+        shadow-radius={renderQuality.shadowRadius}
         shadow-camera-left={-180}
         shadow-camera-right={180}
         shadow-camera-top={180}
         shadow-camera-bottom={-180}
+        shadow-camera-near={8}
+        shadow-camera-far={260}
         shadow-mapSize-width={renderQuality.shadowMapSize}
         shadow-mapSize-height={renderQuality.shadowMapSize}
       />
@@ -95,7 +102,7 @@ export default function GameScene({
         intensity={sceneWeather.fillIntensity * tunnelLightFloor}
         color={sceneWeather.fillColor}
       />
-      {nightMode ? (
+      {nightMode && !renderQuality.thermalGuard ? (
         <>
           <pointLight position={[40, 9, 64]} intensity={1.25} distance={110} color="#f2d486" />
           <pointLight position={[130, 10, 82]} intensity={1.1} distance={120} color="#f2d486" />
@@ -104,11 +111,23 @@ export default function GameScene({
           <pointLight position={[24, 8, 226]} intensity={0.85} distance={105} color="#f2d486" />
         </>
       ) : null}
-      <WeatherSystem mode={weatherMode} nightMode={nightMode} targetRef={carRef} />
+      {nightMode && renderQuality.thermalGuard ? (
+        <>
+          <pointLight position={[40, 9, 64]} intensity={0.55} distance={72} color="#f2d486" />
+          <pointLight position={[130, 10, 82]} intensity={0.46} distance={78} color="#f2d486" />
+        </>
+      ) : null}
+      <WeatherSystem
+        mode={weatherMode}
+        nightMode={nightMode}
+        renderQuality={renderQuality}
+        targetRef={carRef}
+      />
       <CityWorld
         chunkSnapshot={chunkSnapshot}
         nightMode={nightMode}
         playerPosition={telemetry.position}
+        renderQuality={renderQuality}
         weatherMode={weatherMode}
       />
       <NavigationGroundGuide
@@ -125,6 +144,7 @@ export default function GameScene({
         controlsEnabled={gameControlsEnabled}
         driverView={cameraMode === 'firstPerson'}
         isNight={nightMode || weatherPreset.headlightsOn}
+        renderQuality={renderQuality}
         touchInput={touchInput}
         weatherMode={weatherMode}
         onTelemetry={setTelemetry}

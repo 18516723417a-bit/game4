@@ -1,6 +1,6 @@
-import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { DoubleSide } from 'three';
+import { CanvasTexture, DoubleSide, SRGBColorSpace } from 'three';
 import { useVehicleInput } from './input.js';
 import { CAR_CONFIG } from './carConfig.js';
 import {
@@ -31,6 +31,7 @@ export const PlayerCar = forwardRef(function PlayerCar({
   controlsEnabled = true,
   driverView = false,
   isNight = false,
+  renderQuality,
   touchInput = neutralInput,
   weatherMode = 'clear',
   onTelemetry
@@ -52,6 +53,14 @@ export const PlayerCar = forwardRef(function PlayerCar({
   const drivingConfig = useMemo(() => (
     createWeatherAdjustedVehicleConfig(config, weatherMode)
   ), [config, weatherMode]);
+  const headlightIntensity = renderQuality?.thermalGuard ? 0.54 : 1.15;
+  const headlightDistance = renderQuality?.thermalGuard ? 16 : 24;
+  const headlightBeamOpacity = renderQuality?.thermalGuard ? 0.08 : 0.16;
+  const contactShadowTexture = useMemo(() => createContactShadowTexture(), []);
+
+  useEffect(() => () => {
+    contactShadowTexture?.dispose();
+  }, [contactShadowTexture]);
 
   const clearInput = useCallback(() => {
     Object.assign(inputRef.current, neutralInput);
@@ -240,33 +249,50 @@ export const PlayerCar = forwardRef(function PlayerCar({
       rotation={[0, config.spawn.heading, 0]}
     >
       <group position={[0, CAR_VISUAL_RIDE_HEIGHT, 0]} visible={!driverView}>
+      {contactShadowTexture ? (
+        <mesh position={[0, 0.018, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[2.55, 4.9]} />
+          <meshBasicMaterial
+            map={contactShadowTexture}
+            transparent
+            opacity={0.74}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      ) : null}
+
       <mesh castShadow receiveShadow position={[0, 0.34, 0]}>
         <boxGeometry args={[2.14, 0.58, 4.36]} />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           ref={bodyMaterialRef}
           color="#c9352f"
-          roughness={0.44}
-          metalness={0.18}
+          roughness={0.28}
+          metalness={0.42}
+          clearcoat={0.85}
+          clearcoatRoughness={0.24}
         />
       </mesh>
 
       <mesh castShadow receiveShadow position={[0, 0.7, 1.92]} rotation={[-0.08, 0, 0]}>
         <boxGeometry args={[1.72, 0.16, 1.04]} />
-        <meshStandardMaterial color="#d63a32" roughness={0.36} metalness={0.22} />
+        <meshPhysicalMaterial color="#d63a32" roughness={0.26} metalness={0.38} clearcoat={0.78} clearcoatRoughness={0.25} />
       </mesh>
 
       <mesh castShadow receiveShadow position={[0, 0.68, 1.16]}>
         <boxGeometry args={[1.78, 0.22, 1.42]} />
-        <meshStandardMaterial color="#d94339" roughness={0.38} metalness={0.22} />
+        <meshPhysicalMaterial color="#d94339" roughness={0.26} metalness={0.4} clearcoat={0.82} clearcoatRoughness={0.24} />
       </mesh>
 
       <mesh castShadow receiveShadow position={[0, 0.88, -0.36]}>
         <boxGeometry args={[1.5, 0.62, 1.72]} />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
           ref={cabinMaterialRef}
           color="#202a31"
-          roughness={0.28}
-          metalness={0.18}
+          roughness={0.12}
+          metalness={0.28}
+          clearcoat={0.75}
+          clearcoatRoughness={0.2}
         />
       </mesh>
 
@@ -277,12 +303,12 @@ export const PlayerCar = forwardRef(function PlayerCar({
 
       <mesh position={[0, 0.98, 0.58]} rotation={[-0.22, 0, 0]}>
         <boxGeometry args={[1.32, 0.08, 0.58]} />
-        <meshStandardMaterial color="#0d1b25" roughness={0.16} metalness={0.08} side={DoubleSide} transparent opacity={0.42} />
+        <meshPhysicalMaterial color="#0d1b25" roughness={0.06} metalness={0.18} clearcoat={1} clearcoatRoughness={0.08} side={DoubleSide} transparent opacity={0.46} />
       </mesh>
 
       <mesh position={[0, 0.96, -1.22]} rotation={[0.16, 0, 0]}>
         <boxGeometry args={[1.28, 0.08, 0.5]} />
-        <meshStandardMaterial color="#0d1b25" roughness={0.16} metalness={0.08} transparent opacity={0.62} />
+        <meshPhysicalMaterial color="#0d1b25" roughness={0.06} metalness={0.18} clearcoat={1} clearcoatRoughness={0.08} transparent opacity={0.58} />
       </mesh>
 
       {[
@@ -291,7 +317,7 @@ export const PlayerCar = forwardRef(function PlayerCar({
       ].map(([x, y, z]) => (
         <mesh key={`side-window-${x}`} position={[x, y, z]}>
           <boxGeometry args={[0.08, 0.42, 1.02]} />
-          <meshStandardMaterial color="#102634" roughness={0.18} metalness={0.08} transparent opacity={0.58} />
+          <meshPhysicalMaterial color="#102634" roughness={0.08} metalness={0.16} clearcoat={0.9} clearcoatRoughness={0.12} transparent opacity={0.56} />
         </mesh>
       ))}
 
@@ -335,17 +361,28 @@ export const PlayerCar = forwardRef(function PlayerCar({
             emissiveIntensity={0.75}
             roughness={0.22}
             metalness={0.02}
+            toneMapped={false}
           />
+        </mesh>
+      ))}
+
+      {[
+        [-0.54, 0.48, 2.37],
+        [0.54, 0.48, 2.37]
+      ].map(([x, y, z]) => (
+        <mesh key={`headlight-glow-${x}`} position={[x, y, z]}>
+          <boxGeometry args={[0.62, 0.26, 0.045]} />
+          <meshBasicMaterial color="#fff1bd" transparent opacity={isNight ? 0.32 : 0.12} depthWrite={false} toneMapped={false} />
         </mesh>
       ))}
 
       {isNight ? (
         <>
-          <pointLight position={[-0.54, 0.58, 2.55]} intensity={0.85} distance={18} color="#fff1bd" />
-          <pointLight position={[0.54, 0.58, 2.55]} intensity={0.85} distance={18} color="#fff1bd" />
+          <pointLight position={[-0.54, 0.58, 2.55]} intensity={headlightIntensity} distance={headlightDistance} decay={2} color="#fff1bd" />
+          <pointLight position={[0.54, 0.58, 2.55]} intensity={headlightIntensity} distance={headlightDistance} decay={2} color="#fff1bd" />
           <mesh position={[0, 0.52, 4.7]}>
             <boxGeometry args={[2.4, 0.06, 4.2]} />
-            <meshBasicMaterial color="#fff1bd" transparent opacity={0.13} depthWrite={false} />
+            <meshBasicMaterial color="#fff1bd" transparent opacity={headlightBeamOpacity} depthWrite={false} toneMapped={false} />
           </mesh>
         </>
       ) : null}
@@ -368,6 +405,7 @@ export const PlayerCar = forwardRef(function PlayerCar({
           emissive="#9c1411"
           emissiveIntensity={0.55}
           roughness={0.2}
+          toneMapped={false}
         />
       </mesh>
       <mesh position={[0.68, 0.58, -2.32]}>
@@ -378,8 +416,19 @@ export const PlayerCar = forwardRef(function PlayerCar({
           emissive="#9c1411"
           emissiveIntensity={0.55}
           roughness={0.2}
+          toneMapped={false}
         />
       </mesh>
+
+      {[
+        [-0.68, 0.58, -2.37],
+        [0.68, 0.58, -2.37]
+      ].map(([x, y, z]) => (
+        <mesh key={`tail-glow-${x}`} position={[x, y, z]}>
+          <boxGeometry args={[0.46, 0.28, 0.045]} />
+          <meshBasicMaterial color="#ff3b30" transparent opacity={isNight ? 0.28 : 0.12} depthWrite={false} toneMapped={false} />
+        </mesh>
+      ))}
 
       {[
         [-1.1, 0.92, 0.34, -0.22],
@@ -403,6 +452,30 @@ export const PlayerCar = forwardRef(function PlayerCar({
     </group>
   );
 });
+
+function createContactShadowTexture() {
+  if (typeof document === 'undefined') return null;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 256;
+  const context = canvas.getContext('2d');
+
+  if (!context) return null;
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  const gradient = context.createRadialGradient(64, 128, 10, 64, 128, 84);
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 0.62)');
+  gradient.addColorStop(0.48, 'rgba(0, 0, 0, 0.24)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
 
 function CockpitDashboard({ steeringWheelRef, speedNeedleRef, nitroNeedleRef }) {
   return (
@@ -507,10 +580,38 @@ function Wheel({ position }) {
         <cylinderGeometry args={[0.22, 0.22, 0.026, 18]} />
         <meshStandardMaterial color="#c6c9c8" roughness={0.3} metalness={0.52} />
       </mesh>
+      {[0, 1, 2, 3, 4, 5].map((index) => {
+        const angle = (Math.PI * 2 * index) / 6;
+
+        return (
+          <mesh
+            key={`outer-spoke-${index}`}
+            position={[Math.sin(angle) * 0.07, 0.194, Math.cos(angle) * 0.07]}
+            rotation={[0, angle, 0]}
+          >
+            <boxGeometry args={[0.034, 0.026, 0.3]} />
+            <meshStandardMaterial color="#d7dbd9" roughness={0.22} metalness={0.66} />
+          </mesh>
+        );
+      })}
       <mesh position={[0, -0.176, 0]}>
         <cylinderGeometry args={[0.22, 0.22, 0.026, 18]} />
         <meshStandardMaterial color="#c6c9c8" roughness={0.3} metalness={0.52} />
       </mesh>
+      {[0, 1, 2, 3, 4, 5].map((index) => {
+        const angle = (Math.PI * 2 * index) / 6;
+
+        return (
+          <mesh
+            key={`inner-spoke-${index}`}
+            position={[Math.sin(angle) * 0.07, -0.194, Math.cos(angle) * 0.07]}
+            rotation={[0, angle, 0]}
+          >
+            <boxGeometry args={[0.034, 0.026, 0.3]} />
+            <meshStandardMaterial color="#bfc4c2" roughness={0.28} metalness={0.56} />
+          </mesh>
+        );
+      })}
     </group>
   );
 }

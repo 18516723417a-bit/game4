@@ -1,5 +1,5 @@
 export const METRO_TRANSFER_POINTS = {
-  airport: { x: -5520, z: 4740 },
+  airport: { x: -5825, z: 5210 },
   west: { x: -1480, z: 940 },
   central: { x: 120, z: 620 },
   trainStation: { x: 5520, z: -5060 }
@@ -7,34 +7,57 @@ export const METRO_TRANSFER_POINTS = {
 
 const { airport, west, central, trainStation } = METRO_TRANSFER_POINTS;
 
+const RED_NORTH_TERMINAL = { x: -5140, z: -6316 };
+const RED_NORTHWEST_STATION = { x: -4903, z: -1933 };
+const RED_WEST_STATION = { x: -1462, z: 54 };
+const RED_CENTRAL_STATION = { x: 108, z: 97 };
+const RED_SOUTH_HARBOR_STATION = { x: 387, z: 3055 };
+const RED_SOUTHEAST_STATION = { x: 6366, z: 6402 };
+const BLUE_WEST_STATION = { x: -6086, z: 76 };
+const BLUE_INDUSTRIAL_STATION = { x: -3570, z: 1371 };
+const BLUE_CENTRAL_STATION = { x: 151, z: 1371 };
+const BLUE_EAST_RIDGE_STATION = { x: 3806, z: 1306 };
+const BLUE_EAST_TERMINAL = { x: 7441, z: 1457 };
+const GREEN_AIRPORT_TURNBACK = { x: -5780, z: 5000 };
+const GREEN_AIRPORT_STATION = { x: -5780, z: 5120 };
+const GREEN_WEST_STATION = { x: -3355, z: -723 };
+const GREEN_CENTRAL_STATION = { x: -495, z: -2623 };
+const GREEN_EAST_RIDGE_STATION = { x: 3054, z: -1846 };
+const GREEN_TRAIN_STATION = { x: 5527, z: -5063 };
+const PURPLE_AIRPORT_TURNBACK = { x: -6160, z: 4970 };
+const PURPLE_AIRPORT_STATION = { x: -6025, z: 5035 };
+const PURPLE_TRAIN_STATION = { x: 4344, z: -4869 };
+
 export const METRO_LINE_DEFINITIONS = [
   {
     id: 'red',
     color: '#e9495d',
     elevation: 'standard',
     name: 'RED LINE',
-    smooth: false,
+    samplesPerSegment: 10,
     controlPoints: [
-      { x: -3300, z: 3320 },
-      { x: -3100, z: 2580 },
-      { x: -2660, z: 1820 },
-      west,
-      { x: -760, z: 820 },
-      central,
-      { x: 240, z: -760 },
-      { x: 250, z: -2080 },
-      { x: 330, z: -3440 },
-      { x: 650, z: -4700 },
-      { x: 1560, z: -5420 },
-      { x: 2850, z: -5750 },
-      { x: 4220, z: -5900 }
+      RED_NORTH_TERMINAL,
+      { x: -5097, z: -4178 },
+      RED_NORTHWEST_STATION,
+      { x: -4495, z: -378 },
+      { x: -3226, z: -119 },
+      RED_WEST_STATION,
+      RED_CENTRAL_STATION,
+      { x: 387, z: 2192 },
+      RED_SOUTH_HARBOR_STATION,
+      { x: 1226, z: 3358 },
+      { x: 4022, z: 3358 },
+      { x: 6215, z: 3401 },
+      { x: 6473, z: 4632 },
+      RED_SOUTHEAST_STATION,
+      { x: 4946, z: 6532 }
     ],
     stations: [
-      { id: 'red-northwest', label: 'Metro', name: 'NW\nMETRO', point: { x: -3100, z: 2580 } },
-      { id: 'red-west-transfer', label: 'Metro', name: 'WEST\nTRANSFER', point: west, structureForwardOffset: -76, mapOffset: { x: -120, z: 110 } },
-      { id: 'red-central-transfer', label: 'Metro', name: 'CENTRAL\nTRANSFER', point: central, structureForwardOffset: -100, mapOffset: { x: 0, z: -185 } },
-      { id: 'red-south-harbor', label: 'Metro', name: 'SOUTH\nHARBOR', point: { x: 330, z: -3440 } },
-      { id: 'red-southeast', label: 'Metro', name: 'SE\nMETRO', point: { x: 2850, z: -5750 } }
+      { id: 'red-northwest', label: 'Metro', name: 'NW\nMETRO', point: RED_NORTHWEST_STATION },
+      { id: 'red-west-transfer', label: 'Metro', name: 'WEST\nTRANSFER', point: RED_WEST_STATION, mapOffset: { x: -120, z: 110 } },
+      { id: 'red-central-transfer', label: 'Metro', name: 'CENTRAL\nTRANSFER', point: RED_CENTRAL_STATION, mapOffset: { x: 0, z: -185 } },
+      { id: 'red-south-harbor', label: 'Metro', name: 'SOUTH\nHARBOR', point: RED_SOUTH_HARBOR_STATION },
+      { id: 'red-southeast', label: 'Metro', name: 'SE\nMETRO', point: RED_SOUTHEAST_STATION }
     ]
   },
   {
@@ -42,29 +65,24 @@ export const METRO_LINE_DEFINITIONS = [
     color: '#208df2',
     elevation: 'high',
     name: 'BLUE LINE',
-    smooth: false,
+    samplesPerSegment: 10,
     controlPoints: [
-      { x: -7300, z: -1180 },
-      { x: -5600, z: -980 },
-      { x: -4200, z: -850 },
-      { x: -2880, z: -620 },
-      { x: -1680, z: -410 },
-      { x: -640, z: -130 },
-      central,
-      { x: 1380, z: -40 },
-      { x: 2860, z: -70 },
-      { x: 4300, z: 80 },
-      { x: 5900, z: 330 },
-      { x: 7540, z: 470 },
-      { x: 7820, z: -420 },
-      { x: 7820, z: -1460 }
+      { x: -7484, z: 76 },
+      BLUE_WEST_STATION,
+      { x: -4989, z: 874 },
+      BLUE_INDUSTRIAL_STATION,
+      BLUE_CENTRAL_STATION,
+      BLUE_EAST_RIDGE_STATION,
+      { x: 5699, z: 443 },
+      { x: 7312, z: 97 },
+      BLUE_EAST_TERMINAL
     ],
     stations: [
-      { id: 'blue-west-terminal', label: 'Metro', name: 'WEST\nMETRO', point: { x: -5600, z: -980 } },
-      { id: 'blue-industrial', label: 'Metro', name: 'INDUSTRIAL\nMETRO', point: { x: -2880, z: -620 } },
-      { id: 'blue-central-transfer', label: 'Metro', name: 'CENTRAL\nTRANSFER', point: central, structureForwardOffset: 0, mapOffset: { x: -135, z: 105 } },
-      { id: 'blue-east-ridge', label: 'Metro', name: 'EAST\nRIDGE', point: { x: 2860, z: -70 } },
-      { id: 'blue-east-terminal', label: 'Metro', name: 'EAST\nMETRO', point: { x: 5900, z: 330 } }
+      { id: 'blue-west-terminal', label: 'Metro', name: 'WEST\nMETRO', point: BLUE_WEST_STATION },
+      { id: 'blue-industrial', label: 'Metro', name: 'INDUSTRIAL\nMETRO', point: BLUE_INDUSTRIAL_STATION },
+      { id: 'blue-central-transfer', label: 'Metro', name: 'CENTRAL\nTRANSFER', point: BLUE_CENTRAL_STATION, mapOffset: { x: -135, z: 105 } },
+      { id: 'blue-east-ridge', label: 'Metro', name: 'EAST\nRIDGE', point: BLUE_EAST_RIDGE_STATION },
+      { id: 'blue-east-terminal', label: 'Metro', name: 'EAST\nMETRO', point: BLUE_EAST_TERMINAL }
     ]
   },
   {
@@ -72,39 +90,32 @@ export const METRO_LINE_DEFINITIONS = [
     color: '#2fd66f',
     elevation: 'green',
     name: 'GREEN LINE',
-    smooth: false,
+    samplesPerSegment: 10,
     controlPoints: [
-      airport,
-      { x: -6220, z: 3920 },
-      { x: -5660, z: 2680 },
-      { x: -4350, z: 1740 },
-      { x: -3000, z: 1380 },
-      { x: -2040, z: 1660 },
-      west,
-      { x: -780, z: 1080 },
-      central,
-      { x: 900, z: 1260 },
-      { x: 2200, z: 1160 },
-      { x: 3560, z: 1100 },
-      { x: 5040, z: 1020 },
-      { x: 6300, z: 760 },
-      { x: 6900, z: -120 },
-      { x: 6820, z: -1180 },
-      { x: 6200, z: -1880 },
-      { x: 5480, z: -2150 },
-      { x: 5100, z: -1660 },
-      { x: 5260, z: -650 },
-      { x: 5780, z: -360 },
-      { x: 6300, z: -980 },
-      { x: 6160, z: -2360 },
-      trainStation
+      GREEN_AIRPORT_TURNBACK,
+      GREEN_AIRPORT_STATION,
+      { x: -6151, z: 2084 },
+      { x: -5914, z: 572 },
+      { x: -4903, z: -399 },
+      GREEN_WEST_STATION,
+      { x: -1634, z: -939 },
+      { x: -559, z: -1695 },
+      GREEN_CENTRAL_STATION,
+      { x: 366, z: -2710 },
+      { x: 1656, z: -2278 },
+      GREEN_EAST_RIDGE_STATION,
+      { x: 4086, z: -1911 },
+      { x: 4753, z: -2494 },
+      { x: 4774, z: -3703 },
+      { x: 5161, z: -4588 },
+      GREEN_TRAIN_STATION
     ],
     stations: [
-      { id: 'green-airport-transfer', label: 'Metro', name: 'AIRPORT\nTRANSFER', point: airport, structureForwardOffset: -76, mapOffset: { x: -95, z: -105 } },
-      { id: 'green-west-transfer', label: 'Metro', name: 'WEST\nTRANSFER', point: west, structureForwardOffset: 76, mapOffset: { x: 120, z: -110 } },
-      { id: 'green-central-transfer', label: 'Metro', name: 'CENTRAL\nTRANSFER', point: central, structureForwardOffset: 100, mapOffset: { x: 140, z: 120 } },
-      { id: 'green-east-ridge', label: 'Metro', name: 'EAST\nRIDGE', point: { x: 3600, z: 1080 } },
-      { id: 'green-station-transfer', label: 'Metro', name: 'STATION\nTRANSFER', point: trainStation, structureForwardOffset: -76, mapOffset: { x: -120, z: 120 } }
+      { id: 'green-airport-transfer', label: 'Metro', name: 'AIRPORT\nTERMINAL', point: GREEN_AIRPORT_STATION, mapOffset: { x: -95, z: -105 } },
+      { id: 'green-west-transfer', label: 'Metro', name: 'WEST\nTRANSFER', point: GREEN_WEST_STATION, mapOffset: { x: 120, z: -110 } },
+      { id: 'green-central-transfer', label: 'Metro', name: 'CENTRAL\nTRANSFER', point: GREEN_CENTRAL_STATION, mapOffset: { x: 140, z: 120 } },
+      { id: 'green-east-ridge', label: 'Metro', name: 'EAST\nRIDGE', point: GREEN_EAST_RIDGE_STATION },
+      { id: 'green-station-transfer', label: 'Metro', name: 'STATION\nTRANSFER', point: GREEN_TRAIN_STATION, mapOffset: { x: -120, z: 120 } }
     ]
   },
   {
@@ -112,21 +123,21 @@ export const METRO_LINE_DEFINITIONS = [
     color: '#9b59ff',
     elevation: 'express',
     name: 'PURPLE LINK',
-    samplesPerSegment: 4,
     serviceOffsets: [0, 0.5],
-    smooth: false,
+    samplesPerSegment: 10,
     speedMultiplier: 1.8,
     controlPoints: [
-      airport,
-      { x: -3680, z: 2940 },
-      { x: -1080, z: 1160 },
-      { x: 1600, z: -960 },
-      { x: 3600, z: -2860 },
-      trainStation
+      PURPLE_AIRPORT_TURNBACK,
+      PURPLE_AIRPORT_STATION,
+      { x: -5226, z: 3120 },
+      { x: -2796, z: 961 },
+      { x: -65, z: -1414 },
+      { x: 2624, z: -3703 },
+      PURPLE_TRAIN_STATION
     ],
     stations: [
-      { id: 'purple-airport-terminal', label: 'Metro', name: 'AIRPORT\nLINK', point: airport, structureForwardOffset: 76, mapOffset: { x: 120, z: 90 } },
-      { id: 'purple-train-station', label: 'Metro', name: 'STATION\nLINK', point: trainStation, structureForwardOffset: 76, mapOffset: { x: 130, z: -110 } }
+      { id: 'purple-airport-terminal', label: 'Metro', name: 'AIRPORT\nLINK', point: PURPLE_AIRPORT_STATION, mapOffset: { x: 120, z: 90 } },
+      { id: 'purple-train-station', label: 'Metro', name: 'STATION\nLINK', point: PURPLE_TRAIN_STATION, mapOffset: { x: 130, z: -110 } }
     ]
   }
 ];

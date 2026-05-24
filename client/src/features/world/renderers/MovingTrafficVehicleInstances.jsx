@@ -11,14 +11,17 @@ const INTERSECTION_YIELD_LOOKAHEAD = 0.13;
 const INTERSECTION_YIELD_RADIUS = 58;
 const SMOOTH_TRAFFIC_PATH_TYPES = new Set(['bus-route', 'intersection-turn', 'junction-route', 'metro-line', 'smart-turn']);
 const TRAFFIC_TURN_LOOKAHEAD_DISTANCE = 6.5;
+const METRO_POSE_SAMPLE_MIN_DISTANCE = 5.5;
 
 const TRAFFIC_VEHICLE_PARTS = [
   {
     key: 'body',
+    castShadow: true,
     geometry: 'body',
     colorFromVehicle: true,
     metalness: 0.14,
     position: [0, 0.52, 0],
+    physical: true,
     receiveShadow: true,
     roughness: 0.44,
     scale: [0.92, 0.82, 0.92],
@@ -143,6 +146,7 @@ const TRAFFIC_VEHICLE_PARTS = [
   },
   {
     key: 'metro-body',
+    castShadow: true,
     colorFromVehicle: true,
     emissive: '#dfe8ec',
     emissiveIntensity: 0.18,
@@ -150,6 +154,7 @@ const TRAFFIC_VEHICLE_PARTS = [
     metalness: 0.12,
     onlyTypes: ['metroTrain'],
     position: [0, 0.5, 0],
+    physical: true,
     receiveShadow: true,
     roughness: 0.34,
     scale: [1, 1, 1]
@@ -232,9 +237,8 @@ const TRAFFIC_VEHICLE_PARTS = [
   {
     key: 'metro-front-route-board',
     colorFromLine: true,
-    emissiveFromLine: true,
-    emissiveIntensity: 0.48,
     geometry: 'box',
+    materialType: 'basic',
     onlyTrainEnds: ['front'],
     onlyTypes: ['metroTrain'],
     position: [0, 1.0, 0.545],
@@ -244,9 +248,8 @@ const TRAFFIC_VEHICLE_PARTS = [
   {
     key: 'metro-rear-route-board',
     colorFromLine: true,
-    emissiveFromLine: true,
-    emissiveIntensity: 0.34,
     geometry: 'box',
+    materialType: 'basic',
     onlyTrainEnds: ['rear'],
     onlyTypes: ['metroTrain'],
     position: [0, 1.0, -0.545],
@@ -257,73 +260,203 @@ const TRAFFIC_VEHICLE_PARTS = [
     key: 'metro-line-stripe-left',
     colorFromLine: true,
     geometry: 'box',
+    materialType: 'basic',
     onlyTypes: ['metroTrain'],
-    position: [-0.525, 0.47, 0],
-    roughness: 0.36,
-    scale: [0.03, 0.095, 0.98]
+    position: [-0.528, 0.52, 0],
+    roughness: 0.28,
+    scale: [0.038, 0.16, 1.01]
   },
   {
     key: 'metro-line-stripe-right',
     colorFromLine: true,
     geometry: 'box',
+    materialType: 'basic',
     onlyTypes: ['metroTrain'],
-    position: [0.525, 0.47, 0],
-    roughness: 0.36,
-    scale: [0.03, 0.095, 0.98]
+    position: [0.528, 0.52, 0],
+    roughness: 0.28,
+    scale: [0.038, 0.16, 1.01]
   },
   {
     key: 'metro-line-stripe-front',
     colorFromLine: true,
     geometry: 'box',
+    materialType: 'basic',
     onlyTypes: ['metroTrain'],
-    position: [0, 0.47, 0.525],
-    roughness: 0.36,
-    scale: [0.84, 0.095, 0.024]
+    position: [0, 0.52, 0.528],
+    roughness: 0.28,
+    scale: [0.88, 0.16, 0.032]
   },
   {
     key: 'metro-line-stripe-rear',
     colorFromLine: true,
     geometry: 'box',
+    materialType: 'basic',
     onlyTypes: ['metroTrain'],
-    position: [0, 0.47, -0.525],
-    roughness: 0.36,
-    scale: [0.84, 0.095, 0.024]
+    position: [0, 0.52, -0.528],
+    roughness: 0.28,
+    scale: [0.88, 0.16, 0.032]
   },
   {
     key: 'metro-door-left-a',
-    color: '#cbd3d8',
+    color: '#edf4f6',
     geometry: 'box',
     onlyTypes: ['metroTrain'],
-    position: [-0.535, 0.5, -0.24],
+    position: [-0.545, 0.5, -0.34],
     roughness: 0.28,
-    scale: [0.02, 0.56, 0.16]
+    scale: [0.025, 0.58, 0.12]
   },
   {
     key: 'metro-door-left-b',
-    color: '#cbd3d8',
+    color: '#edf4f6',
     geometry: 'box',
     onlyTypes: ['metroTrain'],
-    position: [-0.535, 0.5, 0.24],
+    position: [-0.545, 0.5, 0.34],
     roughness: 0.28,
-    scale: [0.02, 0.56, 0.16]
+    scale: [0.025, 0.58, 0.12]
   },
   {
     key: 'metro-door-right-a',
-    color: '#cbd3d8',
+    color: '#edf4f6',
     geometry: 'box',
     onlyTypes: ['metroTrain'],
-    position: [0.535, 0.5, -0.24],
+    position: [0.545, 0.5, -0.34],
     roughness: 0.28,
-    scale: [0.02, 0.56, 0.16]
+    scale: [0.025, 0.58, 0.12]
   },
   {
     key: 'metro-door-right-b',
-    color: '#cbd3d8',
+    color: '#edf4f6',
     geometry: 'box',
     onlyTypes: ['metroTrain'],
-    position: [0.535, 0.5, 0.24],
+    position: [0.545, 0.5, 0.34],
     roughness: 0.28,
-    scale: [0.02, 0.56, 0.16]
+    scale: [0.025, 0.58, 0.12]
+  },
+  {
+    key: 'metro-door-left-c',
+    color: '#edf4f6',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.545, 0.5, 0],
+    roughness: 0.28,
+    scale: [0.025, 0.58, 0.12]
+  },
+  {
+    key: 'metro-door-right-c',
+    color: '#edf4f6',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.545, 0.5, 0],
+    roughness: 0.28,
+    scale: [0.025, 0.58, 0.12]
+  },
+  {
+    key: 'metro-door-window-left-a',
+    color: '#162832',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.56, 0.68, -0.34],
+    roughness: 0.18,
+    scale: [0.02, 0.18, 0.07]
+  },
+  {
+    key: 'metro-door-window-left-b',
+    color: '#162832',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.56, 0.68, 0],
+    roughness: 0.18,
+    scale: [0.02, 0.18, 0.07]
+  },
+  {
+    key: 'metro-door-window-left-c',
+    color: '#162832',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.56, 0.68, 0.34],
+    roughness: 0.18,
+    scale: [0.02, 0.18, 0.07]
+  },
+  {
+    key: 'metro-door-window-right-a',
+    color: '#162832',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.56, 0.68, -0.34],
+    roughness: 0.18,
+    scale: [0.02, 0.18, 0.07]
+  },
+  {
+    key: 'metro-door-window-right-b',
+    color: '#162832',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.56, 0.68, 0],
+    roughness: 0.18,
+    scale: [0.02, 0.18, 0.07]
+  },
+  {
+    key: 'metro-door-window-right-c',
+    color: '#162832',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.56, 0.68, 0.34],
+    roughness: 0.18,
+    scale: [0.02, 0.18, 0.07]
+  },
+  {
+    key: 'metro-door-divider-left-a',
+    color: '#20282d',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.562, 0.49, -0.34],
+    roughness: 0.22,
+    scale: [0.018, 0.5, 0.012]
+  },
+  {
+    key: 'metro-door-divider-left-b',
+    color: '#20282d',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.562, 0.49, 0],
+    roughness: 0.22,
+    scale: [0.018, 0.5, 0.012]
+  },
+  {
+    key: 'metro-door-divider-left-c',
+    color: '#20282d',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [-0.562, 0.49, 0.34],
+    roughness: 0.22,
+    scale: [0.018, 0.5, 0.012]
+  },
+  {
+    key: 'metro-door-divider-right-a',
+    color: '#20282d',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.562, 0.49, -0.34],
+    roughness: 0.22,
+    scale: [0.018, 0.5, 0.012]
+  },
+  {
+    key: 'metro-door-divider-right-b',
+    color: '#20282d',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.562, 0.49, 0],
+    roughness: 0.22,
+    scale: [0.018, 0.5, 0.012]
+  },
+  {
+    key: 'metro-door-divider-right-c',
+    color: '#20282d',
+    geometry: 'box',
+    onlyTypes: ['metroTrain'],
+    position: [0.562, 0.49, 0.34],
+    roughness: 0.22,
+    scale: [0.018, 0.5, 0.012]
   },
   {
     key: 'metro-front-headlight-left',
@@ -375,10 +508,12 @@ const TRAFFIC_VEHICLE_PARTS = [
   },
   {
     key: 'truck-cargo-box',
+    castShadow: true,
     color: '#cfd4ca',
     geometry: 'box',
     metalness: 0.05,
     onlyTypes: ['truck'],
+    physical: true,
     position: [0, 0.78, -0.16],
     receiveShadow: true,
     roughness: 0.58,
@@ -672,15 +807,38 @@ function TrafficVehiclePartInstances({ instances, part, playerPosition }) {
     renderEntries.filter(({ vehicle }) => Boolean(vehicle.speed))
   ), [renderEntries]);
   const geometry = useDisposableResource(() => createTrafficVehiclePartGeometry(part.geometry), [part.geometry]);
-  const material = useDisposableResource(() => new THREE.MeshStandardMaterial({
-    color: part.colorFromVehicle || part.colorFromLine || part.dynamicColor ? '#ffffff' : part.color,
-    emissive: part.emissiveFromLine ? '#f2d486' : part.emissive ?? '#000000',
-    emissiveIntensity: part.emissiveIntensity ?? 0,
-    metalness: part.metalness ?? 0.04,
-    roughness: part.roughness ?? 0.5,
-    side: part.side ?? THREE.FrontSide,
-    vertexColors: Boolean(part.colorFromVehicle || part.colorFromLine || part.dynamicColor)
-  }), [part]);
+  const material = useDisposableResource(() => {
+    const materialOptions = {
+      color: part.colorFromVehicle || part.colorFromLine || part.dynamicColor ? '#ffffff' : part.color,
+      dithering: true,
+      emissive: part.emissiveFromLine ? '#f2d486' : part.emissive ?? '#000000',
+      emissiveIntensity: part.emissiveIntensity ?? 0,
+      metalness: part.metalness ?? 0.04,
+      roughness: part.roughness ?? 0.5,
+      side: part.side ?? THREE.FrontSide,
+      vertexColors: Boolean(part.colorFromVehicle || part.colorFromLine || part.dynamicColor)
+    };
+
+    if (part.materialType === 'basic') {
+      return new THREE.MeshBasicMaterial({
+        color: materialOptions.color,
+        dithering: true,
+        side: materialOptions.side,
+        toneMapped: false,
+        vertexColors: materialOptions.vertexColors
+      });
+    }
+
+    if (part.physical) {
+      return new THREE.MeshPhysicalMaterial({
+        ...materialOptions,
+        clearcoat: part.colorFromVehicle ? 0.48 : 0.08,
+        clearcoatRoughness: 0.28
+      });
+    }
+
+    return new THREE.MeshStandardMaterial(materialOptions);
+  }, [part]);
 
   useLayoutEffect(() => {
     const mesh = meshRef.current;
@@ -689,7 +847,7 @@ function TrafficVehiclePartInstances({ instances, part, playerPosition }) {
 
     for (let index = 0; index < renderEntries.length; index += 1) {
       const { sourceIndex, vehicle } = renderEntries[index];
-      const motion = part.dynamicColor
+      const motion = part.dynamicColor || isTrafficVehiclePartMotionDependent(part, vehicle)
         ? getTrafficVehicleMotion(vehicle, 0, instances, sourceIndex, playerPosition)
         : null;
 
@@ -744,7 +902,7 @@ function TrafficVehiclePartInstances({ instances, part, playerPosition }) {
       key={`${part.key}-${renderEntries.length}`}
       ref={meshRef}
       args={[geometry, material, renderEntries.length]}
-      castShadow={part.castShadow !== false}
+      castShadow={part.castShadow === true}
       dispose={null}
       frustumCulled={false}
       name={`MovingTrafficVehiclePart:${part.key}`}
@@ -760,7 +918,7 @@ function writeTrafficVehiclePartMatrix(mesh, index, vehicle, elapsed, part, inst
   const [localX, localY, localZ] = part.position;
   const [rotationX = 0, rotationY = 0, rotationZ = 0] = part.rotation ?? [];
   const [scaleX, scaleY, scaleZ] = (
-    isTrafficVehiclePartVisible(part, vehicle) &&
+    isTrafficVehiclePartVisible(part, vehicle, motion) &&
     isTrafficVehiclePoseInsideRenderBounds(vehicle, pose)
   )
     ? getTrafficVehiclePartScale(part, width, height, depth)
@@ -775,14 +933,32 @@ function writeTrafficVehiclePartMatrix(mesh, index, vehicle, elapsed, part, inst
   mesh.setMatrixAt(index, trafficVehiclePartObject.matrixWorld);
 }
 
-function isTrafficVehiclePartVisible(part, vehicle) {
+function isTrafficVehiclePartVisible(part, vehicle, motion = null) {
   const type = vehicle?.vehicleType ?? 'car';
 
   if (type === 'metroTrain' && (!Array.isArray(part.onlyTypes) || !part.onlyTypes.includes(type))) return false;
   if (Array.isArray(part.onlyTypes) && !part.onlyTypes.includes(type)) return false;
   if (Array.isArray(part.hideTypes) && part.hideTypes.includes(type)) return false;
-  if (Array.isArray(part.onlyTrainEnds) && !part.onlyTrainEnds.includes(vehicle?.trainEnd)) return false;
+  if (Array.isArray(part.onlyTrainEnds)) {
+    if (!motion && vehicle?.metroReversibleEnds) {
+      return vehicle.trainEnd === 'front' || vehicle.trainEnd === 'rear';
+    }
+    const trainEnd = getEffectiveTrainEnd(vehicle, motion);
+    if (!part.onlyTrainEnds.includes(trainEnd)) return false;
+  }
   return true;
+}
+
+function isTrafficVehiclePartMotionDependent(part, vehicle) {
+  return vehicle?.metroReversibleEnds && Array.isArray(part.onlyTrainEnds);
+}
+
+function getEffectiveTrainEnd(vehicle, motion = null) {
+  const trainEnd = vehicle?.trainEnd ?? null;
+  if (!motion || !vehicle?.metroReversibleEnds || !motion.reverseService) return trainEnd;
+  if (trainEnd === 'front') return 'rear';
+  if (trainEnd === 'rear') return 'front';
+  return trainEnd;
 }
 
 function isTrafficVehiclePoseInsideRenderBounds(vehicle, pose) {
@@ -847,9 +1023,9 @@ function getTrafficMotionFrameCache(instances, elapsed, playerPosition) {
 }
 
 function finalizeTrafficVehicleMotion(vehicle, motion, cache, vehicleIndex) {
-  const pose = getTrafficPathPose(vehicle.path, motion.progress);
+  const pose = getTrafficVehiclePose(vehicle, motion);
 
-  if (motion.direction < 0) {
+  if (motion.direction < 0 && !vehicle.preservePathYaw) {
     pose.yaw += Math.PI;
   }
 
@@ -863,6 +1039,46 @@ function finalizeTrafficVehicleMotion(vehicle, motion, cache, vehicleIndex) {
   }
 
   return result;
+}
+
+function getTrafficVehiclePose(vehicle, motion) {
+  if (vehicle.behavior !== 'metro-train') {
+    return getTrafficPathPose(vehicle.path, motion.progress);
+  }
+
+  const pose = getTrafficPathPose(vehicle.path, motion.progress);
+  const points = getTrafficPathPoints(vehicle.path);
+  const totalLength = getTrafficPathLength(points);
+  const carLength = vehicle.scale?.[2] ?? 0;
+
+  if (points.length < 2 || totalLength <= 0.000001 || carLength <= 0) return pose;
+
+  const direction = motion.direction < 0 ? -1 : 1;
+  const centerProgress = vehicle.path?.metroLoop
+    ? positiveModulo(motion.progress, 1)
+    : clamp(motion.progress, 0, 1);
+  const centerDistance = centerProgress * totalLength;
+  const sampleDistance = clamp(carLength * 0.48, METRO_POSE_SAMPLE_MIN_DISTANCE, carLength * 0.58);
+  const rear = sampleTrafficPathAtDistance(
+    points,
+    totalLength,
+    centerDistance - direction * sampleDistance,
+    vehicle.path?.metroLoop
+  );
+  const front = sampleTrafficPathAtDistance(
+    points,
+    totalLength,
+    centerDistance + direction * sampleDistance,
+    vehicle.path?.metroLoop
+  );
+  const dx = front.x - rear.x;
+  const dz = front.z - rear.z;
+
+  if (Math.hypot(dx, dz) > 0.000001) {
+    pose.yaw = Math.atan2(dx, dz);
+  }
+
+  return pose;
 }
 
 function getTimedTrafficMotion(vehicle, elapsed) {
@@ -954,7 +1170,7 @@ function getMetroTrainTimedMotion(vehicle, elapsed) {
 
   for (const entry of schedule.entries) {
     if (phase < cursor + entry.dwellSeconds) {
-      return createMetroTrainMotion(vehicle, entry.from, entry.direction, 1, true);
+      return createMetroTrainMotion(vehicle, entry.from, entry.direction, 1, true, entry.reverseService);
     }
 
     cursor += entry.dwellSeconds;
@@ -962,28 +1178,35 @@ function getMetroTrainTimedMotion(vehicle, elapsed) {
     if (phase < cursor + entry.moveSeconds) {
       const t = clamp((phase - cursor) / Math.max(entry.moveSeconds, 0.001), 0, 1);
       const eased = easeInOutSine(t);
-      const progress = lerp(entry.from, entry.to, eased);
+      const progress = vehicle.metroLoop
+        ? positiveModulo(lerp(entry.from, entry.from + getCircularProgressDistance(entry.from, entry.to), eased), 1)
+        : lerp(entry.from, entry.to, eased);
       const braking = t < 0.16 || t > 0.84 ? 0.35 : 0;
 
-      return createMetroTrainMotion(vehicle, progress, entry.direction, braking, false);
+      return createMetroTrainMotion(vehicle, progress, entry.direction, braking, false, entry.reverseService);
     }
 
     cursor += entry.moveSeconds;
   }
 
   const last = schedule.entries[schedule.entries.length - 1];
-  return createMetroTrainMotion(vehicle, last.to, last.direction, 1, true);
+  return createMetroTrainMotion(vehicle, last.to, last.direction, 1, true, last.reverseService);
 }
 
 function getMetroTrainSchedule(vehicle) {
   if (vehicle.__metroSchedule) return vehicle.__metroSchedule;
 
-  const stops = createMetroStopSequence(vehicle.metroStops, vehicle.metroTerminalMargin ?? 0, vehicle.metroOneWay);
+  const stops = createMetroStopSequence(vehicle.metroStops, vehicle.metroTerminalMargin ?? 0, vehicle.metroOneWay, vehicle.metroLoop);
   if (stops.length < 2) return null;
 
   const cycleSeconds = Math.max(vehicle.metroCycleSeconds ?? 720, 1);
   const dwellTotal = stops.reduce((total, stop) => total + getMetroStopDwellSeconds(vehicle, stop), 0);
-  const travelProgress = vehicle.metroOneWay
+  const travelProgress = vehicle.metroLoop
+    ? stops.reduce((total, stop, index) => {
+        const next = stops[(index + 1) % stops.length];
+        return total + getCircularProgressDistance(stop, next);
+      }, 0)
+    : vehicle.metroOneWay
     ? stops.slice(0, -1).reduce((total, stop, index) => total + Math.max(0, stops[index + 1] - stop), 0)
     : stops.reduce((total, stop, index) => {
         const next = stops[(index + 1) % stops.length];
@@ -991,20 +1214,25 @@ function getMetroTrainSchedule(vehicle) {
       }, 0);
   const cruiseSpeed = travelProgress / Math.max(cycleSeconds - dwellTotal, 1);
   const entries = stops.map((stop, index) => {
-    const next = vehicle.metroOneWay
+    const next = vehicle.metroLoop
+      ? stops[(index + 1) % stops.length]
+      : vehicle.metroOneWay
       ? stops[index + 1] ?? stop
       : stops[(index + 1) % stops.length];
-    const distance = vehicle.metroOneWay
+    const distance = vehicle.metroLoop
+      ? getCircularProgressDistance(stop, next)
+      : vehicle.metroOneWay
       ? Math.max(0, next - stop)
       : Math.abs(next - stop);
-    const direction = vehicle.metroOneWay ? 1 : next >= stop ? 1 : -1;
+    const direction = vehicle.metroLoop || vehicle.metroOneWay ? 1 : next >= stop ? 1 : -1;
 
     return {
       from: stop,
       to: next,
       direction,
       dwellSeconds: getMetroStopDwellSeconds(vehicle, stop),
-      moveSeconds: distance / Math.max(cruiseSpeed, 0.000001)
+      moveSeconds: distance / Math.max(cruiseSpeed, 0.000001),
+      reverseService: isMetroReverseServiceSegment(vehicle, stop)
     };
   });
 
@@ -1016,9 +1244,18 @@ function getMetroTrainSchedule(vehicle) {
   return vehicle.__metroSchedule;
 }
 
-function createMetroStopSequence(stops, terminalMargin = 0, oneWay = false) {
+function createMetroStopSequence(stops, terminalMargin = 0, oneWay = false, loop = false) {
   const minStop = clamp(terminalMargin, 0, 0.12);
   const maxStop = 1 - minStop;
+
+  if (loop) {
+    return [...new Set(
+      (stops ?? [])
+        .filter(Number.isFinite)
+        .map((stop) => Number(positiveModulo(stop, 1).toFixed(5)))
+    )].sort((a, b) => a - b);
+  }
+
   const sortedStops = [...new Set(
     [minStop, maxStop, ...(stops ?? [])]
       .filter(Number.isFinite)
@@ -1033,21 +1270,72 @@ function createMetroStopSequence(stops, terminalMargin = 0, oneWay = false) {
   ];
 }
 
+function getCircularProgressDistance(from, to) {
+  return to >= from ? to - from : 1 - from + to;
+}
+
 function getMetroStopDwellSeconds(vehicle, stop) {
   const terminalMargin = clamp(vehicle.metroTerminalMargin ?? 0, 0, 0.12);
-  const isTerminal = stop <= terminalMargin + 0.00001 || stop >= 1 - terminalMargin - 0.00001;
+  const isTerminal = isMetroTerminalStop(vehicle, stop) ||
+    stop <= terminalMargin + 0.00001 ||
+    stop >= 1 - terminalMargin - 0.00001;
   return isTerminal
     ? vehicle.metroTerminalDwellSeconds ?? 10.5
     : vehicle.metroDwellSeconds ?? 7.5;
 }
 
-function createMetroTrainMotion(vehicle, centerProgress, direction, braking, stopped) {
-  const carOffset = (vehicle.trainCarOffset ?? 0) * direction;
+function isMetroTerminalStop(vehicle, stop) {
+  return (vehicle.metroTerminalStops ?? []).some((terminalStop) => (
+    Number.isFinite(terminalStop) &&
+    Math.abs(getShortestCircularProgressDistance(stop, terminalStop)) <= 0.00004
+  ));
+}
+
+function isMetroReverseServiceSegment(vehicle, stop) {
+  const reverseRanges = vehicle.metroReverseServiceRanges ?? [];
+  if (vehicle.metroLoop && reverseRanges.length > 0) {
+    const progress = positiveModulo(stop, 1);
+
+    return reverseRanges.some((range) => {
+      const start = positiveModulo(range?.start ?? Number.NaN, 1);
+      const end = positiveModulo(range?.end ?? Number.NaN, 1);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
+
+      return start <= end
+        ? progress >= start - 0.00004 && progress < end - 0.00004
+        : progress >= start - 0.00004 || progress < end - 0.00004;
+    });
+  }
+
+  const terminalStops = [...new Set(
+    (vehicle.metroTerminalStops ?? [])
+      .filter(Number.isFinite)
+      .map((terminalStop) => Number(positiveModulo(terminalStop, 1).toFixed(5)))
+  )].sort((a, b) => a - b);
+  if (!vehicle.metroLoop || terminalStops.length !== 2) return false;
+
+  const progress = positiveModulo(stop, 1);
+  return progress >= terminalStops[0] - 0.00004 && progress < terminalStops[1] - 0.00004;
+}
+
+function getShortestCircularProgressDistance(left, right) {
+  const delta = Math.abs(positiveModulo(left, 1) - positiveModulo(right, 1));
+  return Math.min(delta, 1 - delta);
+}
+
+function createMetroTrainMotion(vehicle, centerProgress, direction, braking, stopped, reverseService = false) {
+  const carOffset = reverseService && vehicle.metroReversibleEnds
+    ? -(vehicle.trainCarOffset ?? 0)
+    : (vehicle.trainCarOffset ?? 0);
+  const progress = vehicle.metroLoop
+    ? positiveModulo(centerProgress + carOffset, 1)
+    : clamp(centerProgress + carOffset, 0, 1);
 
   return {
     direction,
     braking,
-    progress: clamp(centerProgress + carOffset, 0, 1),
+    progress,
+    reverseService,
     stopped
   };
 }
@@ -1234,17 +1522,24 @@ function getTrafficPathPose(path, progress) {
     return { x: fallback.x, y: fallback.y, z: fallback.z, yaw: 0 };
   }
 
-  const targetDistance = clamp(progress, 0, 1) * totalLength;
-  const pose = sampleTrafficPathAtDistance(points, totalLength, targetDistance);
+  const loopPath = Boolean(path?.metroLoop);
+  const targetDistance = (loopPath ? positiveModulo(progress, 1) : clamp(progress, 0, 1)) * totalLength;
+  const pose = sampleTrafficPathAtDistance(points, totalLength, targetDistance, loopPath);
   const lookBehind = sampleTrafficPathAtDistance(
     points,
     totalLength,
-    Math.max(0, targetDistance - TRAFFIC_TURN_LOOKAHEAD_DISTANCE)
+    loopPath
+      ? targetDistance - TRAFFIC_TURN_LOOKAHEAD_DISTANCE
+      : Math.max(0, targetDistance - TRAFFIC_TURN_LOOKAHEAD_DISTANCE),
+    loopPath
   );
   const lookAhead = sampleTrafficPathAtDistance(
     points,
     totalLength,
-    Math.min(totalLength, targetDistance + TRAFFIC_TURN_LOOKAHEAD_DISTANCE)
+    loopPath
+      ? targetDistance + TRAFFIC_TURN_LOOKAHEAD_DISTANCE
+      : Math.min(totalLength, targetDistance + TRAFFIC_TURN_LOOKAHEAD_DISTANCE),
+    loopPath
   );
   let dx = lookAhead.x - lookBehind.x;
   let dz = lookAhead.z - lookBehind.z;
@@ -1261,8 +1556,8 @@ function getTrafficPathPose(path, progress) {
   };
 }
 
-function sampleTrafficPathAtDistance(points, totalLength, distance) {
-  const segment = getTrafficPathSegmentAtDistance(points, totalLength, distance);
+function sampleTrafficPathAtDistance(points, totalLength, distance, wrap = false) {
+  const segment = getTrafficPathSegmentAtDistance(points, totalLength, distance, wrap);
 
   return {
     x: lerp(segment.start.x, segment.end.x, segment.t),
@@ -1271,8 +1566,10 @@ function sampleTrafficPathAtDistance(points, totalLength, distance) {
   };
 }
 
-function getTrafficPathSegmentAtDistance(points, totalLength, distance) {
-  const targetDistance = clamp(distance, 0, totalLength);
+function getTrafficPathSegmentAtDistance(points, totalLength, distance, wrap = false) {
+  const targetDistance = wrap
+    ? positiveModulo(distance / Math.max(totalLength, 0.000001), 1) * totalLength
+    : clamp(distance, 0, totalLength);
   let walked = 0;
 
   for (let index = 0; index < points.length - 1; index += 1) {

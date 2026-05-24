@@ -1,7 +1,13 @@
 import { ChunkBatchRenderer } from './ChunkRenderer.jsx';
 import { getChunkKey } from './worldConfig.js';
 
-export function CityWorld({ chunkSnapshot, nightMode = false, playerPosition, weatherMode = 'clear' }) {
+export function CityWorld({
+  chunkSnapshot,
+  nightMode = false,
+  playerPosition,
+  renderQuality,
+  weatherMode = 'clear'
+}) {
   const currentKey = chunkSnapshot.currentChunk
     ? getChunkKey(chunkSnapshot.currentChunk.chunkX, chunkSnapshot.currentChunk.chunkZ)
     : null;
@@ -12,6 +18,7 @@ export function CityWorld({ chunkSnapshot, nightMode = false, playerPosition, we
       currentKey={currentKey}
       nightMode={nightMode}
       playerPosition={playerPosition}
+      renderQuality={renderQuality}
       weatherMode={weatherMode}
     />
   );
